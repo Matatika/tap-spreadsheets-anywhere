@@ -8,11 +8,6 @@ LOGGER = logging.getLogger(__name__)
 def generator_wrapper(root_iterator):
     for obj in root_iterator:
         to_return = {}
-        one_run = False
-        if isinstance(obj, str):
-            obj = root_iterator
-            one_run = True
-
         for key, value in obj.items():
             if key is None:
                 key = '_smart_extra'
@@ -25,8 +20,6 @@ def generator_wrapper(root_iterator):
             to_return[formatted_key.lower()] = value
         yield to_return
 
-        if one_run:
-            break
 
 def get_row_iterator(table_spec, reader):
     try:
@@ -36,7 +29,7 @@ def get_row_iterator(table_spec, reader):
             json_array = json_array[json_path]
 
         # throw a TypeError if the root json object can not be iterated
-        return generator_wrapper(json_array)
+        return generator_wrapper(iter(json_array))
     except JSONDecodeError as jde:
         if jde.msg.startswith("Extra data"):
             reader.seek(0)
