@@ -35,7 +35,8 @@ CONFIG_CONTRACT = Schema({
                 Required('type'): Any(Any('null','string','integer','number','date-time','object'),
                                       [Any('null','string','integer','number','date-time','object')])
             }
-        }
+        },
+        Optional('ignore_undefined_field_names'): bool,
     }]
 })
 
