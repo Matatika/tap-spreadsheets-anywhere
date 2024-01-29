@@ -118,7 +118,7 @@ Each object in the 'tables' array describes one or more CSV or Excel spreadsheet
 - **delimiter**: (optional) the delimiter to use when format is 'csv'. Defaults to a comma ',' but you can set delimiter to 'detect' to leverage the csv "Sniffer" for auto-detecting delimiter. 
 - **quotechar**: (optional) the character used to surround values that may contain delimiters - defaults to a double quote '"'
 - **json_path**: (optional) the JSON key under which the list of objects to use is located. Defaults to None, corresponding to an array at the top level of the JSON tree.
-**ignore_undefined_field_names**: (optional) when enabled this removes all catalog entries where the field name is undefined (empty string), as these fields always cause errors with database targets. `Boolean` that defaults to `false`.
+- **ignore_undefined_field_names**: (optional) when enabled this removes all catalog entries where the field name is undefined (empty string), as these fields always cause errors with database targets. `Boolean` that defaults to `false`.
 
 ### Automatic Config Generation
 
