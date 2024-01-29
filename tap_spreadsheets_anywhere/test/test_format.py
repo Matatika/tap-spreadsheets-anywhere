@@ -152,7 +152,8 @@ class TestFormatHandler(unittest.TestCase):
             table_spec = TEST_TABLE_SPEC['tables'][7]
             modified_since = dateutil.parser.parse(table_spec['start_date'])
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
-            samples = file_utils.sample_files(table_spec, target_files, sample_rate=1)
+            ignore_undefined_field_names = False
+            samples = file_utils.sample_files(table_spec, target_files, ignore_undefined_field_names, sample_rate=1)
             schema = generate_schema(table_spec, samples)
             for t_file in target_files:
                 records_streamed += file_utils.write_file(t_file['key'], table_spec, schema.to_dict())
@@ -208,6 +209,34 @@ class TestFormatHandler(unittest.TestCase):
 
         row = next(iterator)
         self.assertTrue(len(row)>1,"Not able to read a row.")
+
+
+
+
+class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
+
+    def test_ignore_undefined_field_names_true(self):
+        table_spec = TEST_TABLE_SPEC['tables'][2]
+        modified_since = dateutil.parser.parse(table_spec['start_date'])
+        target_files = file_utils.get_matching_objects(table_spec, modified_since)
+        ignore_undefined_field_names = True
+
+        samples = file_utils.sample_files(table_spec, target_files, ignore_undefined_field_names, sample_rate=1)
+
+        # Should find only the 3 named columns in the sheet
+        self.assertTrue(len(samples[1]) == 3, "Found more than expected 3 columns")
+
+    def test_ignore_undefined_field_names_false(self):
+        table_spec = TEST_TABLE_SPEC['tables'][2]
+        modified_since = dateutil.parser.parse(table_spec['start_date'])
+        target_files = file_utils.get_matching_objects(table_spec, modified_since)
+        ignore_undefined_field_names = False
+
+        samples = file_utils.sample_files(table_spec, target_files, ignore_undefined_field_names, sample_rate=1)
+
+        # This assert is 4 as sample_files finds 3 names columns, 3 unnamed, but merges all
+        # of the unnamed columns into one "entry" in the catalog as an empty string
+        self.assertTrue(len(samples[1]) == 4, "Found more than expected 4 columns")
 
 
 class TestFormatHandlerExcelXlsxSkipInitial:
