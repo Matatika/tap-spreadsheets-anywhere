@@ -74,7 +74,7 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
     return records_synced
 
 
-def sample_file(table_spec, target_filename, sample_rate, max_records):
+def sample_file(table_spec, target_filename, ignore_undefined_field_names, sample_rate, max_records):
     LOGGER.info('Sampling {} ({} records, every {}th record).'
                 .format(target_filename, max_records, sample_rate))
 
@@ -97,18 +97,23 @@ def sample_file(table_spec, target_filename, sample_rate, max_records):
         else:
             LOGGER.exception(f"Unable to parse {target_filename}",ife)
 
+    if ignore_undefined_field_names:
+        for row in samples:
+            row.pop('', None)
+
     LOGGER.info('Sampled {} records.'.format(len(samples)))
     return samples
 
 
-def sample_files(table_spec, target_files,
+def sample_files(table_spec, target_files, ignore_undefined_field_names,
                  sample_rate=10, max_records=1000, max_files=5):
     to_return = []
 
     files_so_far = 0
 
     for target_file in target_files:
-        to_return += sample_file(table_spec, target_file['key'], sample_rate, max_records)
+        to_return += sample_file(table_spec, target_file['key'], ignore_undefined_field_names,
+                                sample_rate, max_records)
         files_so_far += 1
 
         if files_so_far >= max_files:

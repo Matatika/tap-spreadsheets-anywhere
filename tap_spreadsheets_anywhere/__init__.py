@@ -66,8 +66,10 @@ def discover(config):
             sample_rate = table_spec.get('sample_rate',5)
             max_sampling_read = table_spec.get('max_sampling_read', 1000)
             max_sampled_files = table_spec.get('max_sampled_files', 50)
-            samples = file_utils.sample_files(table_spec, target_files,sample_rate=sample_rate,
-                                              max_records=max_sampling_read, max_files=max_sampled_files)
+            samples = file_utils.sample_files(table_spec, target_files,
+                                              table_spec.get("ignore_undefined_field_names", False),
+                                              sample_rate=sample_rate, max_records=max_sampling_read,
+                                              max_files=max_sampled_files)
             schema = generate_schema(table_spec, samples)
             stream_metadata = []
             key_properties = table_spec.get('key_properties', [])
