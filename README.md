@@ -127,6 +127,13 @@ Each object in the 'tables' array describes one or more CSV or Excel spreadsheet
 
 (To connect to multiple azure storages, you will need to have the tap run multiple times with different `azure_storage_connection_string` settings).
 
+To obtain this setting:
+1. Go to the Azure Portal in your browser, sign in if needed.
+2. In the search bar look for "storage accounts".
+3. Choose the storage account you want to connect to.
+4. In the sidebar, click on `Access keys`.
+5. Here you can find your connection string. (There is also a link to the docs about these keys, which will help if you need to create one).
+
 ### Automatic Config Generation
 
 This is an experimental feature used to crawl a path and generate a config block for every file encountered. An intended 
