@@ -37,7 +37,8 @@ CONFIG_CONTRACT = Schema({
             }
         },
         Optional('ignore_undefined_field_names'): bool,
-    }]
+    }],
+    Optional('azure_storage_connection_string'): str,
 })
 
 class Config():

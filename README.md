@@ -89,7 +89,8 @@ The configuration is also captured in [tables_config_util.py](tap_spreadsheets_a
             // you must specify the worksheet name to pull from in your xls(x) file.
             "worksheet_name": "Names"
         }
-    ]
+    ],
+    "azure_storage_connection_string": "my_connection_string"
 }
 
 ```
@@ -119,6 +120,19 @@ Each object in the 'tables' array describes one or more CSV or Excel spreadsheet
 - **quotechar**: (optional) the character used to surround values that may contain delimiters - defaults to a double quote '"'
 - **json_path**: (optional) the JSON key under which the list of objects to use is located. Defaults to None, corresponding to an array at the top level of the JSON tree.
 - **ignore_undefined_field_names**: (optional) when enabled this removes all catalog entries where the field name is undefined (empty string), as these fields always cause errors with database targets. `Boolean` that defaults to `false`.
+
+### Other Optional Tap Settings
+
+- **azure_storage_connection_string**: (optional) the connection string to connect to and get files from Azure. This setting applies for all azure connections in your tables settings.
+
+(To connect to multiple azure storages, you will need to have the tap run multiple times with different `azure_storage_connection_string` settings).
+
+To obtain this setting:
+1. Go to the Azure Portal in your browser, sign in if needed.
+2. In the search bar look for "storage accounts".
+3. Choose the storage account you want to connect to.
+4. In the sidebar, click on `Access keys`.
+5. Here you can find your connection string. (There is also a link to the docs about these keys, which will help if you need to create one).
 
 ### Automatic Config Generation
 
