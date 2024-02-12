@@ -90,7 +90,9 @@ The configuration is also captured in [tables_config_util.py](tap_spreadsheets_a
             "worksheet_name": "Names"
         }
     ],
-    "azure_storage_connection_string": "my_connection_string"
+    "azure_storage_connection_string": "my_connection_string",
+    "aws_access_key_id" : "my_access_key_id",
+    "aws_secret_access_key" : "my_secret_access_key",
 }
 
 ```
@@ -133,6 +135,14 @@ To obtain this setting:
 3. Choose the storage account you want to connect to.
 4. In the sidebar, click on `Access keys`.
 5. Here you can find your connection string. (There is also a link to the docs about these keys, which will help if you need to create one).
+
+---
+
+- **aws_access_key_id** and **aws_secret_access_key**: (optional) these settings let you connect to your S3 bucket and sync spreadsheets from it.
+
+(To connect to multiple S3 buckets, you will need to have the tap run multiple times with different `aws...` settings).
+
+To obtain these settings we recommend following this link: [AWS Docs - Credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey)
 
 ### Automatic Config Generation
 

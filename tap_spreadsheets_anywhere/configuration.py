@@ -39,6 +39,8 @@ CONFIG_CONTRACT = Schema({
         Optional('ignore_undefined_field_names'): bool,
     }],
     Optional('azure_storage_connection_string'): str,
+    Optional('aws_access_key_id'): str,
+    Optional('aws_secret_access_key'): str,
 })
 
 class Config():
