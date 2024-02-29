@@ -77,7 +77,8 @@ The configuration is also captured in [tables_config_util.py](tap_spreadsheets_a
                     "type": "string",
                 }
             },
-            "ignore_undefined_field_names": true
+            "ignore_undefined_field_names": true,
+            "ignore_state": true
         },
         {
             "path": "sftp://username:password@host//path/file",
@@ -122,6 +123,7 @@ Each object in the 'tables' array describes one or more CSV or Excel spreadsheet
 - **quotechar**: (optional) the character used to surround values that may contain delimiters - defaults to a double quote '"'
 - **json_path**: (optional) the JSON key under which the list of objects to use is located. Defaults to None, corresponding to an array at the top level of the JSON tree.
 - **ignore_undefined_field_names**: (optional) when enabled this removes all catalog entries where the field name is undefined (empty string), as these fields always cause errors with database targets. `Boolean` that defaults to `false`.
+- **ignore_state**: (optional) when enabled this ignores the state for the specific table, this means we will default to getting all the applicable files from the **start_date** you have provided.
 
 ### Other Optional Tap Settings
 
