@@ -116,8 +116,6 @@ def sync(config, state, catalog):
 
             modified_since = dateutil.parser.parse(table_spec['start_date']) if table_spec.get('ignore_state', False) else modified_since
 
-            LOGGER.debug(modified_since)
-
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
             max_records_per_run = table_spec.get('max_records_per_run', -1)
             records_streamed = 0
