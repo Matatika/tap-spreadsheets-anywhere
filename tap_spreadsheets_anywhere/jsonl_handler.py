@@ -5,9 +5,11 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-def generator_wrapper(root_iterator):
+def generator_wrapper(root_iterator, table_spec):
     for obj in root_iterator:
         json_obj = json.loads(obj)
+        if table_spec.get("skip_empty_rows", False) and all(value == None or value == '' for value in obj.values()):
+            continue
         to_return = {}
         for key, value in json_obj.items():
             if key is None:
@@ -24,14 +26,14 @@ def generator_wrapper(root_iterator):
 
 def get_row_iterator(table_spec, reader):
     try:
-        return generator_wrapper(iter(reader))
+        return generator_wrapper(iter(reader), table_spec)
     except JSONDecodeError as jde:
         if jde.msg.startswith("Extra data"):
             reader.seek(0)
             json_objects = []
             for jobj in reader:
                 json_objects.append(json.loads(jobj))
-            return generator_wrapper(json_objects)
+            return generator_wrapper(json_objects, table_spec)
         else:
             raise jde
 

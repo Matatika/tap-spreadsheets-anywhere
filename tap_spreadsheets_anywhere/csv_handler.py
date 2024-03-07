@@ -4,9 +4,11 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-def generator_wrapper(reader):
+def generator_wrapper(reader, table_spec):
     for row in reader:
         to_return = {}
+        if table_spec.get("skip_empty_rows", False) and all(value == None or value == '' for value in row.values()):
+            continue
         for key, value in row.items():
             if key is None:
                 key = '_smart_extra'
@@ -46,4 +48,4 @@ def get_row_iterator(table_spec, reader):
             csv.register_dialect(dialect, custom_dialect)
 
     reader = csv.DictReader(reader, fieldnames=field_names, dialect=dialect)
-    return generator_wrapper(reader)
+    return generator_wrapper(reader, table_spec)
