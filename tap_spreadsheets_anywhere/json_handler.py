@@ -7,8 +7,10 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 
-def generator_wrapper(root_iterator):
+def generator_wrapper(root_iterator, table_spec):
     for obj in root_iterator:
+        if table_spec.get("skip_empty_rows", False) and all(value == None or value == '' for value in obj.values()):
+            continue
         to_return = {}
         if isinstance(obj, list):
             # get json obj from list, yield each one
@@ -41,14 +43,14 @@ def get_row_iterator(table_spec, reader):
                 LOGGER.info(i)
 
         # throw a TypeError if the root json object can not be iterated
-        return generator_wrapper(iter(json_array))
+        return generator_wrapper(iter(json_array), table_spec)
     except JSONDecodeError as jde:
         if jde.msg.startswith("Extra data"):
             reader.seek(0)
             json_objects = []
             for jobj in reader:
                 json_objects.append(json.loads(jobj))
-            return generator_wrapper(json_objects)
+            return generator_wrapper(json_objects, table_spec)
         else:
             raise jde
 

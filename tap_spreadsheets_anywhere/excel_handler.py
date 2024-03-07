@@ -18,6 +18,9 @@ def generator_wrapper(reader, table_spec: dict={}) -> dict:
             _skip_count += 1
             continue
 
+        if table_spec.get("skip_empty_rows", False) and all(value == None or value == '' for value in row.values()):
+            continue
+
         to_return = {}
         if header_row is None:
             header_row = row

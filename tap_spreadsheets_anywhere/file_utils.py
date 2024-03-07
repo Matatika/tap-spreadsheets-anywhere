@@ -86,7 +86,10 @@ def sample_file(table_spec, target_filename, ignore_undefined_field_names, sampl
 
         for row in iterator:
             if (current_row % sample_rate) == 0:
-                samples.append(row)
+                if table_spec.get("skip_empty_rows", False) and all(value == None for value in row.values()):
+                    continue
+                else:
+                    samples.append(row)
 
             current_row += 1
             if len(samples) >= max_records:

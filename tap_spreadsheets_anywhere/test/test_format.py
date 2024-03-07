@@ -101,6 +101,31 @@ TEST_TABLE_SPEC = {
             "start_date": "2017-05-01T00:00:00Z",
             "key_properties": [],
             "format": "excel"
+        },
+        {
+            "path": "file://./tap_spreadsheets_anywhere/test",
+            "name": "empty_rows_csv",
+            "pattern": 'empty_rows_csv.csv',
+            "start_date": "2017-05-01T00:00:00Z",
+            "key_properties": [],
+            "format": "csv",
+            "universal_newlines": False,
+            "sample_rate": 1,
+            "max_sampling_read": 5,
+            "max_sampled_files": 1,
+            "skip_empty_rows": True
+        },
+        {
+            "path": "file://./tap_spreadsheets_anywhere/test",
+            "name": "empty_rows_csv",
+            "pattern": 'empty_rows_csv.csv',
+            "start_date": "2017-05-01T00:00:00Z",
+            "key_properties": [],
+            "format": "csv",
+            "universal_newlines": False,
+            "sample_rate": 1,
+            "max_sampling_read": 5,
+            "max_sampled_files": 1
         }
     ]
 }
@@ -297,3 +322,43 @@ class TestFormatHandlerExcelXlsxSkipInitial:
         iterator = get_row_iterator(table_spec, self.uri)
         # Assert that the expected row, after skipping, is next.
         assert next(iterator) == exp
+
+
+class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
+    """pytests to validate Skip Empty Rows setting."""
+
+    def test_skip_empty_rows_csv(self):
+        table_spec = TEST_TABLE_SPEC['tables'][8]
+        modified_since = dateutil.parser.parse(table_spec['start_date'])
+        target_files = file_utils.get_matching_objects(table_spec, modified_since)
+        assert len(target_files) == 1
+
+        target_uri = table_spec['path'] + '/' + table_spec['pattern']
+        iterator = get_row_iterator(table_spec, target_uri)
+
+        rows_list = []
+
+        for row in iterator:
+            rows_list.append(row)
+            print(row)
+            self.assertTrue(any(value != None or value != '' for value in row.values()))
+
+        self.assertTrue(len(rows_list) == 8)
+
+
+    def test_not_skip_empty_rows_csv(self):
+        table_spec = TEST_TABLE_SPEC['tables'][9]
+        modified_since = dateutil.parser.parse(table_spec['start_date'])
+        target_files = file_utils.get_matching_objects(table_spec, modified_since)
+        assert len(target_files) == 1
+
+        target_uri = table_spec['path'] + '/' + table_spec['pattern']
+
+        iterator =  get_row_iterator(table_spec, target_uri)
+
+        rows_list = []
+
+        for row in iterator:
+            rows_list.append(row)
+
+        self.assertTrue(len(rows_list) == 9)
