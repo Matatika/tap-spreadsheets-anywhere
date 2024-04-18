@@ -126,6 +126,18 @@ TEST_TABLE_SPEC = {
             "sample_rate": 1,
             "max_sampling_read": 5,
             "max_sampled_files": 1
+        },
+        {
+            "path": "file://./tap_spreadsheets_anywhere/test",
+            "name": "csv_double_quotes",
+            "pattern": 'csv_with_escaped_double_quotes.csv',
+            "start_date": "2017-05-01T00:00:00Z",
+            "key_properties": [],
+            "format": "csv",
+            "universal_newlines": False,
+            "sample_rate": 1,
+            "max_sampling_read": 5,
+            "max_sampled_files": 1
         }
     ]
 }
@@ -236,6 +248,18 @@ class TestFormatHandler(unittest.TestCase):
         self.assertTrue(len(row)>1,"Not able to read a row.")
 
 
+    def test_csv_with_double_quotes_in_values(self):
+        table_spec = TEST_TABLE_SPEC['tables'][10]
+        modified_since = dateutil.parser.parse(table_spec['start_date'])
+        target_files = file_utils.get_matching_objects(table_spec, modified_since)
+        assert len(target_files) == 1
+
+        target_uri = table_spec['path'] + '/' + table_spec['pattern']
+        iterator = get_row_iterator(TEST_TABLE_SPEC['tables'][10], target_uri)
+
+        for row in iterator:
+            print(row)
+            self.assertTrue(row['column_two'] == '2', "Expected column_two value to be '2'")
 
 
 class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
