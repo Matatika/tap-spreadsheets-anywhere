@@ -33,6 +33,7 @@ def get_row_iterator(table_spec, reader):
     if 'delimiter' not in table_spec or table_spec['delimiter'] == 'detect':
         try:
             dialect = csv.Sniffer().sniff(reader.readline(), delimiters=[',', '\t', ';', ' ', ':', '|', ' '])
+            dialect.doublequote = True
             if reader.seekable():
                 reader.seek(0)
         except Exception as err:
