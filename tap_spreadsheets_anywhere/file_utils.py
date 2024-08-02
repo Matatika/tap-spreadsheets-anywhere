@@ -280,8 +280,7 @@ def list_files_in_local_bucket(bucket, search_prefix=None):
             filename in local_filenames if os.path.exists(os.path.join(path, filename))]
 
 def list_files_in_gs_bucket(bucket, search_prefix=None):
-    gs_client = storage.Client()
-        
+    gs_client = tap_spreadsheets_anywhere.format_handler.get_gcs_client()            
     blobs = gs_client.list_blobs(bucket, prefix=search_prefix)
 
     target_objects = [{'Key': blob.name, 'LastModified': blob.updated} for blob in blobs]

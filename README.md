@@ -94,6 +94,8 @@ The configuration is also captured in [tables_config_util.py](tap_spreadsheets_a
     "azure_storage_connection_string": "my_connection_string",
     "aws_access_key_id" : "my_access_key_id",
     "aws_secret_access_key" : "my_secret_access_key",
+    "google_application_credentials" : "path/to/service_credentials.json",
+    "google_application_credentials" : "{ \"project_id\": \"my_project_id\" }"
 }
 
 ```
@@ -145,6 +147,10 @@ To obtain this setting:
 (To connect to multiple S3 buckets, you will need to have the tap run multiple times with different `aws...` settings).
 
 To obtain these settings we recommend following this link: [AWS Docs - Credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey)
+
+---
+
+- **google_application_credentials**: (optional) connect to Google Cloud Storage using a path to a credentials file, or the contents of a credentials file as JSON. See [`GOOGLE_APPLICATION_CREDENTIALS` environment variable](https://cloud.google.com/docs/authentication/application-default-credentials#GAC) for more information.
 
 ### Automatic Config Generation
 

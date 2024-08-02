@@ -6,7 +6,19 @@ import tap_spreadsheets_anywhere.excel_handler
 import tap_spreadsheets_anywhere.json_handler
 import tap_spreadsheets_anywhere.jsonl_handler
 from azure.storage.blob import BlobServiceClient
+from google.cloud.storage import Client as GCSClient
 import os
+import json
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def get_gcs_client():
+    credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    
+    try:
+        return GCSClient.from_service_account_info(json.loads(credentials))
+    except (TypeError, json.decoder.JSONDecodeError):
+        return GCSClient()
 
 class InvalidFormatError(Exception):
     def __init__(self, fname, message="The file was not in the expected format"):
@@ -25,6 +37,11 @@ def get_streamreader(uri, universal_newlines=True, newline='', open_mode='r', en
                 "client": BlobServiceClient.from_connection_string(
                     os.environ['AZURE_STORAGE_CONNECTION_STRING'],
                 )
+            }
+        },
+        "gs": lambda: {
+            "transport_params": {
+                "client": get_gcs_client()
             }
         },
     }
