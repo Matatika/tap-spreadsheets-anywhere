@@ -4,11 +4,11 @@ from codecs import StreamReader
 from functools import lru_cache
 from io import StringIO
 from urllib.parse import urlparse
-from paramiko.rsakey import RSAKey
 
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
+from paramiko.rsakey import RSAKey
 from singer import utils
 
 import tap_spreadsheets_anywhere.csv_handler
@@ -21,23 +21,20 @@ def get_transport_params(protocol: str):
     config: dict = utils.parse_args([]).config
 
     if protocol == "sftp":
-
-        transport_params = {
-            # https://docs.paramiko.org/en/stable/api/client.html#paramiko.client.SSHClient.connect
-            "connect_kwargs": {
-                "allow_agent": False,
-                "look_for_keys": False
-            }
+        # https://docs.paramiko.org/en/stable/api/client.html#paramiko.client.SSHClient.connect
+        connect_kwargs = {
+            "allow_agent": False,
+            "look_for_keys": False,
         }
 
         if "ssh_private_key" in config:
             with StringIO(config["ssh_private_key"]) as f:
                 private_key = RSAKey.from_private_key(f)
 
-            transport_params["connect_kwargs"]["pkey"] = private_key
-            transport_params["connect_kwargs"]["passphrase"] = config.get("ssh_passphrase")
+            connect_kwargs["pkey"] = private_key
+            connect_kwargs["passphrase"] = config.get("ssh_passphrase")
 
-        return transport_params
+        return {"connect_kwargs": connect_kwargs}
 
     if protocol == "azure":
         return {
