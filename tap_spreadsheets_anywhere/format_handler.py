@@ -25,6 +25,7 @@ def get_transport_params(protocol: str):
         connect_kwargs = {
             "allow_agent": False,
             "look_for_keys": False,
+            "timeout": 10,
         }
 
         if "ssh_private_key" in config:
