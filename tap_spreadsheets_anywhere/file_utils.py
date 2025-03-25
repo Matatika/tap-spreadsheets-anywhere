@@ -188,8 +188,8 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
 
     parsed_uri = ssh_transport.parse_uri(uri)
     uri_path = parsed_uri.pop('uri_path')
-    transport_params={'connect_kwargs':{'allow_agent':False,'look_for_keys':False}}
-    ssh = ssh_transport._connect(parsed_uri['host'], parsed_uri['user'], parsed_uri['port'], parsed_uri['password'], transport_params=transport_params)
+    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(parsed_uri.pop('scheme'))
+    ssh = ssh_transport._connect_ssh(parsed_uri['host'], parsed_uri['user'], parsed_uri['port'] or 22, parsed_uri['password'], transport_params=transport_params)
     sftp_client = ssh.get_transport().open_sftp_client()
     entries = []
     max_results = 10000

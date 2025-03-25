@@ -3,14 +3,14 @@ from setuptools import setup
 
 setup(
     name="tap-spreadsheets-anywhere",
-    version="0.3.6",
+    version="0.3.7",
     description="Singer.io tap for extracting spreadsheet data from cloud storage",
     author="Eric Simmerman",
     url="https://github.com/ets/tap-spreadsheets-anywhere",
     py_modules=["tap_spreadsheets_anywhere"],
     install_requires=[
         "singer-python>=5.0.12",
-        "smart_open>=2.1",
+        "smart_open>=6.3",
         "voluptuous>=0.10.5",
         "boto3>=1.15.5",
         "google-cloud-storage>=2.7.0",

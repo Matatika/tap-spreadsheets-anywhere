@@ -44,6 +44,8 @@ CONFIG_CONTRACT = Schema({
     Optional('aws_access_key_id'): str,
     Optional('aws_secret_access_key'): str,
     Optional('google_application_credentials'): str,
+    Optional('ssh_private_key'): str,
+    Optional('ssh_passphrase'): str,
 })
 
 class Config():

@@ -96,6 +96,7 @@ The configuration is also captured in [tables_config_util.py](tap_spreadsheets_a
     "aws_secret_access_key" : "my_secret_access_key",
     "google_application_credentials" : "path/to/service_credentials.json",
     "google_application_credentials" : "{ \"project_id\": \"my_project_id\" }"
+    "ssh_private_key": "-----BEGIN RSA PRIVATE KEY-----ahhhhhhhhhh..."
 }
 
 ```
@@ -151,6 +152,11 @@ To obtain these settings we recommend following this link: [AWS Docs - Credentia
 ---
 
 - **google_application_credentials**: (optional) connect to Google Cloud Storage using a path to a credentials file, or the contents of a credentials file as JSON. See [`GOOGLE_APPLICATION_CREDENTIALS` environment variable](https://cloud.google.com/docs/authentication/application-default-credentials#GAC) for more information.
+
+---
+
+- **ssh_private_key**: (optional) connect to a SFTP server with a private key. Currently this key has to be an RSA key, and should include any spaces and newline characters in your keyfile. (Open to PRs to expand support to other key types).
+
 
 ### Automatic Config Generation
 

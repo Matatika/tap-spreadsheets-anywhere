@@ -1,15 +1,54 @@
-import smart_open
-
+import json
+import os
 from codecs import StreamReader
+from functools import lru_cache
+from io import StringIO
+from urllib.parse import urlparse
+
+import smart_open
+from azure.storage.blob import BlobServiceClient
+from google.cloud.storage import Client as GCSClient
+from paramiko.rsakey import RSAKey
+from singer import utils
+
 import tap_spreadsheets_anywhere.csv_handler
 import tap_spreadsheets_anywhere.excel_handler
 import tap_spreadsheets_anywhere.json_handler
 import tap_spreadsheets_anywhere.jsonl_handler
-from azure.storage.blob import BlobServiceClient
-from google.cloud.storage import Client as GCSClient
-import os
-import json
-from functools import lru_cache
+
+
+def get_transport_params(protocol: str):
+    config: dict = utils.parse_args([]).config
+
+    if protocol == "sftp":
+        # https://docs.paramiko.org/en/stable/api/client.html#paramiko.client.SSHClient.connect
+        connect_kwargs = {
+            "allow_agent": False,
+            "look_for_keys": False,
+            "timeout": 10,
+        }
+
+        if "ssh_private_key" in config:
+            with StringIO(config["ssh_private_key"]) as f:
+                private_key = RSAKey.from_private_key(f)
+
+            connect_kwargs["pkey"] = private_key
+            connect_kwargs["passphrase"] = config.get("ssh_passphrase")
+
+        return {"connect_kwargs": connect_kwargs}
+
+    if protocol == "azure":
+        return {
+            "client": BlobServiceClient.from_connection_string(
+                os.environ["AZURE_STORAGE_CONNECTION_STRING"]
+            )
+        }
+
+    if protocol == "gs":
+        return {"client": get_gcs_client()}
+
+    msg = f"Protocol '{protocol}' not supported"
+    raise ValueError(msg)
 
 @lru_cache(maxsize=None)
 def get_gcs_client():
@@ -30,31 +69,27 @@ class InvalidFormatError(Exception):
         return f'{self.name} could not be parsed: {self.message}'
 
 
-def get_streamreader(uri, universal_newlines=True, newline='', open_mode='r', encoding='utf-8'):
-    kwarg_dispatch = {
-        "azure": lambda: {
-            "transport_params": {
-                "client": BlobServiceClient.from_connection_string(
-                    os.environ['AZURE_STORAGE_CONNECTION_STRING'],
-                )
-            }
-        },
-        "gs": lambda: {
-            "transport_params": {
-                "client": get_gcs_client()
-            }
-        },
-    }
-
-    SCHEME_SEP = "://"
-    kwargs = kwarg_dispatch.get(uri.split(SCHEME_SEP, 1)[0], lambda: {})()
-
+def get_streamreader(
+    uri: str,
+    universal_newlines=True,
+    newline="",
+    open_mode="r",
+    encoding="utf-8",
+):
     # When reading in binary mode, undefine `encoding`.
     # Otherwise, `smart_open` will return a `TextIOWrapper` in `"r"` mode.
     # However, reading binary streams needs a `BufferedReader`.
     if "b" in open_mode:
         encoding = None
-    streamreader = smart_open.open(uri, open_mode, newline=newline, errors='surrogateescape', encoding=encoding, **kwargs)
+
+    streamreader = smart_open.open(
+        uri,
+        open_mode,
+        newline=newline,
+        errors="surrogateescape",
+        encoding=encoding,
+        transport_params=get_transport_params(urlparse(uri).scheme),
+    )
 
     if not universal_newlines and isinstance(streamreader, StreamReader):
         return monkey_patch_streamreader(streamreader)
