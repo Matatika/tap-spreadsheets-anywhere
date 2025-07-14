@@ -20,6 +20,7 @@ setup(
         "paramiko",
         "azure-storage-blob>=12.14.0",
         "jsonpath-ng>=1.5.3",
+        "imapfs @ git+https://github.com/Matatika/imapfs.git",
     ],
     packages=["tap_spreadsheets_anywhere"],
     include_package_data=True,

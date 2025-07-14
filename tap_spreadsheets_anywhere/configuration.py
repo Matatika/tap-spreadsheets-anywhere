@@ -46,6 +46,11 @@ CONFIG_CONTRACT = Schema({
     Optional('google_application_credentials'): str,
     Optional('ssh_private_key'): str,
     Optional('ssh_passphrase'): str,
+    Optional('username'): str,
+    Optional('password'): str,
+    Optional('oauth_credentials'): {
+        Required('access_token'): str,
+    },
 })
 
 class Config():

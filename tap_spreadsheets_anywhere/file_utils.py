@@ -1,32 +1,49 @@
+from __future__ import annotations
+
+import fnmatch
+import logging
+import os
 import re
-
-import pytz
 from datetime import datetime, timezone
+from functools import lru_cache
+from os import walk
+from stat import S_ISREG
+from urllib.parse import urlparse, urlunparse
 
+import boto3
 import dateutil
+import pytz
 import requests
 import singer
-import boto3
-from google.cloud import storage
-import os, logging
-from os import walk
-import tap_spreadsheets_anywhere.format_handler
-import tap_spreadsheets_anywhere.conversion as conversion
+import smart_open.ftp as ftp_transport
 import smart_open.ssh as ssh_transport
 from azure.storage.blob import BlobServiceClient
-import smart_open.ftp as ftp_transport
+from imapfs.core import IMAPFileSystem
+
+import tap_spreadsheets_anywhere.conversion as conversion
+import tap_spreadsheets_anywhere.format_handler
 
 LOGGER = logging.getLogger(__name__)
 
 
 def resolve_target_uri(table_spec, target_filename):
-    protocol, bucket = parse_path(table_spec['path'])
+    path: str = table_spec["path"]
+    parsed = urlparse(path)
+
+    if parsed.scheme == "imap":
+        ## target filename is fully resolved here
+        return urlunparse(parsed._replace(path=target_filename))
+
     # TODO: logic below is disabled because we can't currently support reading filenames from Content-Disposition (Excel limitations)
-    if False and protocol in ["http", "https"] and table_spec['pattern'] != target_filename:
+    if (
+        False
+        and parsed.scheme in ["http", "https"]
+        and table_spec["pattern"] != target_filename
+    ):
         # Handle case where URL returns a filename in the response so we do NOT append the pattern to get the URI
-        return table_spec['path']
+        return path
     else:
-        return table_spec['path'] + "/" + target_filename
+        return path + "/" + target_filename
 
 
 def _hide_credentials(path):
@@ -148,6 +165,12 @@ def get_matching_objects(table_spec, modified_since=None):
         target_objects = convert_URL_to_file_list(table_spec)
     elif protocol in ["azure"]:
         target_objects = list_files_in_azure_bucket(bucket,table_spec.get('search_prefix'))
+    elif protocol in ["imap"]:
+        target_objects = list_files_in_imap_mailbox(
+            table_spec["path"],
+            table_spec.get("search_prefix"),
+            modified_since
+        )
     else:
         raise ValueError("Protocol {} not yet supported. Pull Requests are welcome!")
 
@@ -193,8 +216,7 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
     sftp_client = ssh.get_transport().open_sftp_client()
     entries = []
     max_results = 10000
-    from stat import S_ISREG
-    import fnmatch
+
     for entry in sftp_client.listdir_attr(uri_path):
         if search_prefix is None or fnmatch.fnmatch(entry.filename,search_prefix):
             mode = entry.st_mode
@@ -239,8 +261,7 @@ def list_files_in_ftp_server(uri, search_prefix=None):
     ftp = ftp_transport._connect(parsed_uri['host'], parsed_uri['user'], parsed_uri['port'], parsed_uri['password'], secure_conn, transport_params={})
     entries = []
     max_results = 10000
-    from stat import S_ISREG
-    import fnmatch
+
     for row in ftp.mlsd(uri_path):
         if search_prefix is None or fnmatch.fnmatch(entry[0],search_prefix):
             if row[1]['type'] == 'file':
@@ -329,6 +350,33 @@ def list_files_in_s3_bucket(bucket, search_prefix=None):
     LOGGER.info("Found {} files.".format(len(s3_objects)))
 
     return s3_objects
+
+@lru_cache
+def list_files_in_imap_mailbox(
+    uri: str,
+    search_prefix: str | None = None,
+    modified_since: datetime | None = None,
+):
+    parsed = urlparse(uri)
+    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(
+        parsed.scheme
+    )
+    fs = IMAPFileSystem(host=parsed.netloc, **transport_params)
+    target_objects = []
+
+    for f in fs.ls(parsed.path, since=modified_since.date()):
+        if search_prefix is None or fnmatch.fnmatch(f["name"], search_prefix):
+            last_modified = f.get("last_modified") or datetime.now(tz=timezone.utc)
+            target_objects.append(
+                {
+                    "Key": f["name"],
+                    "LastModified": last_modified,
+                }
+            )
+
+    LOGGER.info("Found {} files.".format(len(target_objects)))
+
+    return target_objects
 
 
 def config_by_crawl(crawl_config):

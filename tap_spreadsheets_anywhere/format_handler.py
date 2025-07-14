@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
+from imapfs.core import IMAPFileSystem
 from paramiko.rsakey import RSAKey
 from singer import utils
 
@@ -47,6 +48,13 @@ def get_transport_params(protocol: str):
     if protocol == "gs":
         return {"client": get_gcs_client()}
 
+    if protocol == "imap":
+        return {
+            "username": config["username"],
+            "password": config.get("password"),
+            "access_token": config.get("oauth_credentials", {}).get("access_token"),
+        }
+
     msg = f"Protocol '{protocol}' not supported"
     raise ValueError(msg)
 
@@ -82,13 +90,20 @@ def get_streamreader(
     if "b" in open_mode:
         encoding = None
 
+    parsed = urlparse(uri)
+    transport_params = get_transport_params(parsed.scheme)
+
+    if parsed.scheme == "imap":
+        fs = IMAPFileSystem(host=parsed.netloc, **transport_params)
+        return fs.open(parsed.path, "r")
+
     streamreader = smart_open.open(
         uri,
         open_mode,
         newline=newline,
         errors="surrogateescape",
         encoding=encoding,
-        transport_params=get_transport_params(urlparse(uri).scheme),
+        transport_params=transport_params,
     )
 
     if not universal_newlines and isinstance(streamreader, StreamReader):
