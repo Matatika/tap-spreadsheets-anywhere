@@ -2,7 +2,8 @@
 import json
 import logging
 
-from voluptuous import Schema, Required, Any, Optional
+from voluptuous import Any, Extra, Optional, Required, Schema
+
 LOGGER = logging.getLogger(__name__)
 
 CONFIG_CONTRACT = Schema({
@@ -50,6 +51,7 @@ CONFIG_CONTRACT = Schema({
     Optional('password'): str,
     Optional('oauth_credentials'): {
         Required('access_token'): str,
+        Extra: object,
     },
 })
 
