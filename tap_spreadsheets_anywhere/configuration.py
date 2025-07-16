@@ -50,7 +50,10 @@ CONFIG_CONTRACT = Schema({
     Optional('username'): str,
     Optional('password'): str,
     Optional('oauth_credentials'): {
-        Required('access_token'): str,
+        Optional('access_token'): str,
+        Optional('refresh_token'): str,
+        Optional('refresh_proxy_url'): str,
+        Optional('refresh_proxy_url_auth'): str,
         Extra: object,
     },
 })

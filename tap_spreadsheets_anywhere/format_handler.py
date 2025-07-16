@@ -2,9 +2,11 @@ import json
 import os
 from codecs import StreamReader
 from functools import lru_cache
+from imaplib import IMAP4
 from io import StringIO
 from urllib.parse import urlparse
 
+import requests
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
@@ -52,7 +54,7 @@ def get_transport_params(protocol: str):
         return {
             "username": config["username"],
             "password": config.get("password"),
-            "access_token": config.get("oauth_credentials", {}).get("access_token"),
+            **config.get("oauth_credentials", {}),
         }
 
     msg = f"Protocol '{protocol}' not supported"
@@ -77,6 +79,37 @@ class InvalidFormatError(Exception):
         return f'{self.name} could not be parsed: {self.message}'
 
 
+@lru_cache(maxsize=None)
+def get_imap_fs(host):
+    transport_params = get_transport_params("imap")
+
+    def refresh():
+        response = requests.post(
+            transport_params["refresh_proxy_url"],
+            headers={"Authorization": transport_params["refresh_proxy_url_auth"]},
+            json={
+                "grant_type": "refresh_token",
+                "refresh_token": transport_params["refresh_token"],
+            },
+        )
+
+        response.raise_for_status()
+        return response.json()["access_token"]
+
+    username = transport_params["username"]
+    access_token = transport_params.get("access_token") or refresh()
+
+    try:
+        return IMAPFileSystem(host=host, username=username, access_token=access_token)
+    except IMAP4.error:
+        if "access_token" not in transport_params:
+            raise  # we just refreshed the access token; likely some other error
+
+        access_token = refresh()
+
+    return IMAPFileSystem(host=host, username=username, access_token=access_token)
+
+
 def get_streamreader(
     uri: str,
     universal_newlines=True,
@@ -91,10 +124,9 @@ def get_streamreader(
         encoding = None
 
     parsed = urlparse(uri)
-    transport_params = get_transport_params(parsed.scheme)
 
     if parsed.scheme == "imap":
-        fs = IMAPFileSystem(host=parsed.netloc, **transport_params)
+        fs = get_imap_fs(parsed.netloc)
         return fs.open(parsed.path, "r")
 
     streamreader = smart_open.open(
@@ -103,7 +135,7 @@ def get_streamreader(
         newline=newline,
         errors="surrogateescape",
         encoding=encoding,
-        transport_params=transport_params,
+        transport_params=get_transport_params(parsed.scheme),
     )
 
     if not universal_newlines and isinstance(streamreader, StreamReader):

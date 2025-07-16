@@ -18,7 +18,6 @@ import singer
 import smart_open.ftp as ftp_transport
 import smart_open.ssh as ssh_transport
 from azure.storage.blob import BlobServiceClient
-from imapfs.core import IMAPFileSystem
 
 import tap_spreadsheets_anywhere.conversion as conversion
 import tap_spreadsheets_anywhere.format_handler
@@ -358,10 +357,7 @@ def list_files_in_imap_mailbox(
     modified_since: datetime | None = None,
 ):
     parsed = urlparse(uri)
-    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(
-        parsed.scheme
-    )
-    fs = IMAPFileSystem(host=parsed.netloc, **transport_params)
+    fs = tap_spreadsheets_anywhere.format_handler.get_imap_fs(parsed.netloc)
     target_objects = []
 
     for f in fs.ls(parsed.path, since=modified_since.date()):
