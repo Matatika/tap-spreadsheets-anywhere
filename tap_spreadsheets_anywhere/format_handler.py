@@ -127,7 +127,7 @@ def get_streamreader(
 
     if parsed.scheme == "imap":
         fs = get_imap_fs(parsed.netloc)
-        return fs.open(parsed.path, "r")
+        return fs.open(parsed.path, open_mode, newline=newline, encoding=encoding)
 
     streamreader = smart_open.open(
         uri,
