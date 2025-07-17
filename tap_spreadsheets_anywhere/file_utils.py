@@ -31,7 +31,7 @@ def resolve_target_uri(table_spec, target_filename):
 
     if parsed.scheme == "imap":
         ## target filename is fully resolved here
-        return urlunparse(parsed._replace(path=target_filename))
+        return urlunparse(parsed._replace(path="/")) + target_filename
 
     # TODO: logic below is disabled because we can't currently support reading filenames from Content-Disposition (Excel limitations)
     if (

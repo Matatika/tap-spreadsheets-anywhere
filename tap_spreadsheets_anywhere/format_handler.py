@@ -4,7 +4,7 @@ from codecs import StreamReader
 from functools import lru_cache
 from imaplib import IMAP4
 from io import StringIO
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import requests
 import smart_open
@@ -127,7 +127,8 @@ def get_streamreader(
 
     if parsed.scheme == "imap":
         fs = get_imap_fs(parsed.netloc)
-        return fs.open(parsed.path, open_mode, newline=newline, encoding=encoding)
+        path = uri.lstrip(urlunparse(parsed._replace(path="/")))
+        return fs.open(path, open_mode, newline=newline, encoding=encoding)
 
     streamreader = smart_open.open(
         uri,
