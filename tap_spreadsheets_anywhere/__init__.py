@@ -130,6 +130,14 @@ def sync(config, state, catalog):
                     LOGGER.info(f'Processed the per-run limit of {records_streamed} records for stream "{stream.tap_stream_id}". Stopping sync for this stream.')
                     break
                 state[stream.tap_stream_id] = {'modified_since': t_file['last_modified'].isoformat()}
+                # TODO: when processing multiple table configs for the same stream, it
+                # is not safe to write state like this as target files for each config
+                # are implicitly ordered, and by processing multiple configs, this order
+                # is invalidated at the start of every next one
+                # we should resolve all target files by config first, sort by file last
+                # modified value and then write records/state, since we would guarantee
+                # total ordering, therefore allowing us to safely emit state after
+                # processing each file
                 singer.write_state(state)
 
             LOGGER.info(f'Wrote {records_streamed} records for stream "{stream.tap_stream_id}".')
