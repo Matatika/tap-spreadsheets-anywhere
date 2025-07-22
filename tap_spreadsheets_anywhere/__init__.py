@@ -102,6 +102,7 @@ def sync(config, state, catalog):
     for stream in catalog.get_selected_streams(state):
         LOGGER.info("Syncing stream:" + stream.tap_stream_id)
         catalog_schema = stream.schema.to_dict()
+        state_modified_since = state.get(stream.tap_stream_id, {}).get("modified_since")
         for table_spec in config['tables']:
             if table_spec['name'] != stream.tap_stream_id:
                 LOGGER.warn(f'Skipping processing for stream [{stream.tap_stream_id}] without a config block.')
@@ -115,9 +116,10 @@ def sync(config, state, catalog):
                 key_properties=stream.key_properties,
             )
             modified_since = dateutil.parser.parse(
-                state.get(stream.tap_stream_id, {}).get('modified_since') or table_spec['start_date'])
-
-            modified_since = dateutil.parser.parse(table_spec['start_date']) if table_spec.get('ignore_state', False) else modified_since
+                table_spec["start_date"]
+                if table_spec.get("ignore_state", False)
+                else (state_modified_since or table_spec["start_date"])
+            )
 
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
             max_records_per_run = table_spec.get('max_records_per_run', -1)
