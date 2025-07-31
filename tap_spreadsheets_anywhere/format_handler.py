@@ -50,6 +50,9 @@ def get_transport_params(protocol: str):
     if protocol == "gs":
         return {"client": get_gcs_client()}
 
+    if protocol == "s3":
+        return {}
+
     if protocol == "imap":
         return {
             "username": config["username"],
