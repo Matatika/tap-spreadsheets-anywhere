@@ -39,7 +39,11 @@ def generator_wrapper(reader, table_spec: dict={}) -> dict:
             # replace whitespace with underscores
             formatted_key = re.sub(r"\s+", '_', formatted_key)
 
-            to_return[formatted_key.lower()] = cell.value
+            # preserve mixed casing
+            if formatted_key.isupper():
+                formatted_key = formatted_key.lower()
+
+            to_return[formatted_key] = cell.value
 
         yield to_return
 
