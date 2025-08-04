@@ -54,7 +54,7 @@ def _hide_credentials(path):
     return path
 
 
-def write_file(target_filename, table_spec, schema, max_records=-1):
+def write_file(target_filename, last_modified_iso, table_spec, schema, max_records=-1):
     LOGGER.info('Syncing file "{}".'.format(target_filename))
     target_uri = resolve_target_uri(table_spec, target_filename)
     records_synced = 0
@@ -65,7 +65,8 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
                 '_smart_source_bucket': _hide_credentials(table_spec['path']),
                 '_smart_source_file': target_filename,
                 # index zero, +1 for header row
-                '_smart_source_lineno': records_synced + 2
+                '_smart_source_lineno': records_synced + 2,
+                '_smart_source_last_modified': last_modified_iso,
             }
 
             try:

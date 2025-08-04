@@ -45,6 +45,7 @@ def generate_schema(table_spec, samples):
         '_smart_source_bucket': {'type': 'string'},
         '_smart_source_file': {'type': 'string'},
         '_smart_source_lineno': {'type': 'integer'},
+        '_smart_source_last_modified': {'type': 'string', 'format': 'date-time'},
     }
     prefer_number_vs_integer = table_spec.get('prefer_number_vs_integer', False)
     prefer_schema_as_string = table_spec.get('prefer_schema_as_string', False)
@@ -125,11 +126,12 @@ def sync(config, state, catalog):
             max_records_per_run = table_spec.get('max_records_per_run', -1)
             records_streamed = 0
             for t_file in target_files:
-                records_streamed += file_utils.write_file(t_file['key'], table_spec, merged_schema, max_records=max_records_per_run-records_streamed)
+                last_modified_iso = t_file['last_modified'].isoformat()
+                records_streamed += file_utils.write_file(t_file['key'], last_modified_iso, table_spec, merged_schema, max_records=max_records_per_run-records_streamed)
                 if 0 < max_records_per_run <= records_streamed:
                     LOGGER.info(f'Processed the per-run limit of {records_streamed} records for stream "{stream.tap_stream_id}". Stopping sync for this stream.')
                     break
-                state[stream.tap_stream_id] = {'modified_since': t_file['last_modified'].isoformat()}
+                state[stream.tap_stream_id] = {'modified_since': last_modified_iso}
                 # TODO: when processing multiple table configs for the same stream, it
                 # is not safe to write state like this as target files for each config
                 # are implicitly ordered, and by processing multiple configs, this order
