@@ -168,9 +168,9 @@ def get_matching_objects(table_spec, modified_since=None, max_sampled_files=None
     elif protocol in ["imap"]:
         target_objects = list_files_in_imap_mailbox(
             table_spec["path"],
-            max_sampled_files,
             table_spec.get("search_prefix"),
-            modified_since
+            modified_since,
+            max_sampled_files,
         )
     else:
         raise ValueError("Protocol {} not yet supported. Pull Requests are welcome!")
@@ -355,9 +355,9 @@ def list_files_in_s3_bucket(bucket, search_prefix=None):
 @lru_cache
 def list_files_in_imap_mailbox(
     uri: str,
-    max_sampled_files: int,
     search_prefix: str | None = None,
     modified_since: datetime | None = None,
+    max_sampled_files: int | None = None,
 ):
     parsed = urlparse(uri)
     fs = tap_spreadsheets_anywhere.format_handler.get_imap_fs(parsed.netloc)
