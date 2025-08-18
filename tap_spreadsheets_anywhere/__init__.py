@@ -62,11 +62,16 @@ def discover(config):
     streams = []
     for table_spec in config['tables']:
         try:
-            modified_since = dateutil.parser.parse(table_spec['start_date'])
-            target_files = file_utils.get_matching_objects(table_spec, modified_since)
+            state_modified_since = (
+                utils.parse_args(['tables']).state.get(table_spec['name'], {}).get("modified_since")
+                if table_spec.get('state_based_discovery')
+                else None
+            )
             sample_rate = table_spec.get('sample_rate',5)
             max_sampling_read = table_spec.get('max_sampling_read', 1000)
             max_sampled_files = table_spec.get('max_sampled_files', 50)
+            modified_since = dateutil.parser.parse(state_modified_since or table_spec['start_date'])
+            target_files = file_utils.get_matching_objects(table_spec, modified_since, max_sampled_files)
             samples = file_utils.sample_files(table_spec, target_files,
                                               table_spec.get("ignore_undefined_field_names", False),
                                               sample_rate=sample_rate, max_records=max_sampling_read,

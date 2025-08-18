@@ -60,6 +60,9 @@ def get_transport_params(protocol: str):
             **config.get("oauth_credentials", {}),
         }
 
+    if protocol == "file":
+        return {}
+
     msg = f"Protocol '{protocol}' not supported"
     raise ValueError(msg)
 

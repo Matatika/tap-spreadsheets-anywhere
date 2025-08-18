@@ -147,7 +147,7 @@ def parse_path(path):
     return ('local', path_parts[0]) if len(path_parts) <= 1 else (path_parts[0], path_parts[1])
 
 
-def get_matching_objects(table_spec, modified_since=None):
+def get_matching_objects(table_spec, modified_since=None, max_sampled_files=None):
     protocol, bucket = parse_path(table_spec['path'])
 
     # TODO Breakout the transport schemes here similar to the registry/loading pattern used by smart_open
@@ -169,7 +169,8 @@ def get_matching_objects(table_spec, modified_since=None):
         target_objects = list_files_in_imap_mailbox(
             table_spec["path"],
             table_spec.get("search_prefix"),
-            modified_since
+            modified_since,
+            max_sampled_files,
         )
     else:
         raise ValueError("Protocol {} not yet supported. Pull Requests are welcome!")
@@ -356,12 +357,13 @@ def list_files_in_imap_mailbox(
     uri: str,
     search_prefix: str | None = None,
     modified_since: datetime | None = None,
+    max_sampled_files: int | None = None,
 ):
     parsed = urlparse(uri)
     fs = tap_spreadsheets_anywhere.format_handler.get_imap_fs(parsed.netloc)
     target_objects = []
 
-    for f in fs.ls(parsed.path, since=modified_since.date()):
+    for f in fs.ls(parsed.path, since=modified_since.date(), limit=max_sampled_files):
         if search_prefix is None or fnmatch.fnmatch(f["name"], search_prefix):
             last_modified = f.get("last_modified") or datetime.now(tz=timezone.utc)
             target_objects.append(
