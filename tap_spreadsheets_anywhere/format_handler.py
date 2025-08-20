@@ -139,7 +139,7 @@ def get_streamreader(
             open_mode,
             newline=newline,
             encoding=encoding,
-            errors="surrogateescape",
+            errors="replace",
         )
 
     streamreader = smart_open.open(
