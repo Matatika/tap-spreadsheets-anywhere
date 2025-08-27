@@ -54,4 +54,6 @@ def get_row_iterator(table_spec, reader):
             csv.register_dialect(dialect, custom_dialect)
 
     reader = csv.DictReader(reader, fieldnames=field_names, dialect=dialect)
+    reader.fieldnames = [name.strip() for name in reader.fieldnames]
+
     return generator_wrapper(reader, table_spec)
