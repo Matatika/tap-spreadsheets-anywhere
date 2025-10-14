@@ -15,6 +15,8 @@ This is a [Singer](https://singer.io) tap that reads data from spreadsheet files
 - WebHDFS
 - GCS
 - Azure Blob Storage
+- IMAP (`imap://`)
+  - Example path: `imap://imap.gmail.com/INBOX/*/*.csv`
 
 Multiple individual files with the same schema can be configured & ingested into the same "Table" for processing.
 
