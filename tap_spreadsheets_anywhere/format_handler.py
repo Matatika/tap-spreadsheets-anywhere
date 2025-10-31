@@ -53,6 +53,9 @@ def get_transport_params(protocol: str):
     if protocol == "s3":
         return {}
 
+    if protocol in ["http", "https"]:
+        return {}
+        
     if protocol == "imap":
         return {
             "username": config["username"],
