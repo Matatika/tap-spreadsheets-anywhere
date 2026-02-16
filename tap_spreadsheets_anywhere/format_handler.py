@@ -106,10 +106,16 @@ def get_imap_fs(host):
         return response.json()["access_token"]
 
     username = transport_params["username"]
-    access_token = transport_params.get("access_token") or refresh()
+
+    fs_kwargs = {}
+    password = transport_params.get("password")
+    if password:
+        fs_kwargs["password"] = password
+    else:
+        fs_kwargs["access_token"] = transport_params.get("access_token") or refresh()
 
     try:
-        return IMAPFileSystem(host=host, username=username, access_token=access_token)
+        return IMAPFileSystem(host=host, username=username, **fs_kwargs)
     except IMAP4.error:
         if "access_token" not in transport_params:
             raise  # we just refreshed the access token; likely some other error
