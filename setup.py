@@ -21,6 +21,7 @@ setup(
         "azure-storage-blob>=12.14.0",
         "jsonpath-ng>=1.5.3",
         "imapfs @ git+https://github.com/Matatika/imapfs.git",
+        "msgraphfs>=0.4,<1",
     ],
     packages=["tap_spreadsheets_anywhere"],
     include_package_data=True,

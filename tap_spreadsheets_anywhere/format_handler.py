@@ -11,6 +11,7 @@ import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
 from imapfs.core import IMAPFileSystem
+from msgraphfs.core import MSGDriveFS
 from paramiko.rsakey import RSAKey
 from singer import utils
 
@@ -66,6 +67,9 @@ def get_transport_params(protocol: str):
     if protocol == "file":
         return {}
 
+    if protocol == "sharepoint":
+        return config.get("oauth_credentials", {})
+
     msg = f"Protocol '{protocol}' not supported"
     raise ValueError(msg)
 
@@ -86,7 +90,6 @@ class InvalidFormatError(Exception):
 
     def __str__(self):
         return f'{self.name} could not be parsed: {self.message}'
-
 
 @lru_cache(maxsize=None)
 def get_imap_fs(host):
@@ -125,6 +128,31 @@ def get_imap_fs(host):
     return IMAPFileSystem(host=host, username=username, access_token=access_token)
 
 
+@lru_cache(maxsize=None)
+def get_sharepoint_fs(uri):
+    transport_params = get_transport_params("sharepoint")
+
+    def refresh():
+        response = requests.post(
+            transport_params["refresh_proxy_url"],
+            headers={"Authorization": transport_params["refresh_proxy_url_auth"]},
+            json={
+                "grant_type": "refresh_token",
+                "refresh_token": transport_params["refresh_token"],
+            },
+        )
+
+        response.raise_for_status()
+        return response.json()
+
+    token = (
+        {"access_token": transport_params["access_token"]}
+        if "access_token" in transport_params
+        else refresh()
+    )
+    return MSGDriveFS(oauth2_client_params={"token": token}, url_path=uri)
+
+
 def get_streamreader(
     uri: str,
     universal_newlines=True,
@@ -143,6 +171,17 @@ def get_streamreader(
     if parsed.scheme == "imap":
         fs = get_imap_fs(parsed.netloc)
         path = uri.lstrip(urlunparse(parsed._replace(path="/")))
+        return fs.open(
+            path,
+            open_mode,
+            newline=newline,
+            encoding=encoding,
+            errors="replace",
+        )
+
+    if parsed.scheme == "sharepoint":
+        fs = get_sharepoint_fs(uri)
+        path = parsed.path.replace(f"/{fs.drive_name}", "", 1)
         return fs.open(
             path,
             open_mode,
