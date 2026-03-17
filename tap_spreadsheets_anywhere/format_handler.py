@@ -180,8 +180,9 @@ def get_streamreader(
         )
 
     if parsed.scheme == "sharepoint":
-        fs = get_sharepoint_fs(uri)
-        path = parsed.path.replace(f"/{fs.drive_name}", "", 1)
+        path = uri.split("/", 4)[-1]
+        fs = get_sharepoint_fs(uri.replace(path, "", 1))
+
         return fs.open(
             path,
             open_mode,
