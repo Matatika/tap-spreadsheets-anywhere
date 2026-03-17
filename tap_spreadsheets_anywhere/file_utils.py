@@ -171,6 +171,8 @@ def get_matching_objects(table_spec, modified_since=None):
             table_spec.get("search_prefix"),
             modified_since,
         )
+    elif protocol in ["sharepoint"]:
+        target_objects = list_files_in_sharepoint(table_spec["path"], table_spec.get("search_prefix"))
     else:
         raise ValueError("Protocol {} not yet supported. Pull Requests are welcome!")
 
@@ -375,6 +377,30 @@ def list_files_in_imap_mailbox(
 
     return target_objects
 
+
+@lru_cache
+def list_files_in_sharepoint(
+    uri: str,
+    search_prefix: str | None = None,
+    path: str = "",
+):
+    fs = tap_spreadsheets_anywhere.format_handler.get_sharepoint_fs(uri)
+    target_objects = []
+
+    for f in fs.ls(path):
+        if f["type"] == "directory":
+            target_objects.extend(list_files_in_sharepoint(uri, search_prefix=search_prefix, path=f["name"]))
+            continue
+
+        if search_prefix is None or fnmatch.fnmatch(f["name"], search_prefix):
+            target_objects.append(
+                {
+                    "Key": f["name"],
+                    "LastModified": f["mtime"]
+                }
+            )
+
+    return target_objects
 
 def config_by_crawl(crawl_config):
     config = {'tables': []}
