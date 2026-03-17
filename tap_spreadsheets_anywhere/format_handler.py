@@ -6,6 +6,7 @@ from imaplib import IMAP4
 from io import StringIO
 from urllib.parse import urlparse, urlunparse
 
+import httpx
 import requests
 import smart_open
 from azure.storage.blob import BlobServiceClient
@@ -145,13 +146,24 @@ def get_sharepoint_fs(uri):
         response.raise_for_status()
         return response.json()
 
-    token = (
-        {"access_token": transport_params["access_token"]}
-        if "access_token" in transport_params
-        else refresh()
-    )
-    return MSGDriveFS(oauth2_client_params={"token": token}, url_path=uri)
+    if "access_token" in transport_params:
+        fs = MSGDriveFS(
+            oauth2_client_params={
+                "token": {"access_token": transport_params["access_token"]}
+            },
+            url_path=uri,
+        )
+        try:
+            fs.msgraph_get("https://graph.microsoft.com/v1.0/me")
+            return fs
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 401:
+                raise
 
+    return MSGDriveFS(
+        oauth2_client_params={"token": refresh()},
+        url_path=uri,
+    )
 
 def get_streamreader(
     uri: str,
