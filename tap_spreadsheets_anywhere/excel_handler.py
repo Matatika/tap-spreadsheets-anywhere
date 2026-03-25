@@ -78,7 +78,7 @@ def get_legacy_row_iterator(table_spec, file_handle):
 
 
 def get_row_iterator(table_spec, file_handle):
-    workbook = openpyxl.load_workbook(BytesIO(file_handle.read()), read_only=True)
+    workbook = openpyxl.load_workbook(BytesIO(file_handle.read()), read_only=True, data_only=True)
     
     if "worksheet_name" in table_spec:
         try:
