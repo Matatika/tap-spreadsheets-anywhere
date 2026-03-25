@@ -29,6 +29,7 @@ def get_transport_params(protocol: str):
             "allow_agent": False,
             "look_for_keys": False,
             "timeout": 10,
+            "password": config.get("password"),
         }
 
         if "ssh_private_key" in config:
