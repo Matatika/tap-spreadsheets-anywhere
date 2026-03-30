@@ -50,7 +50,6 @@ CONFIG_CONTRACT = Schema({
     Optional('ssh_passphrase'): str,
     Optional('username'): str,
     Optional('password'): str,
-    Optional('host'): str,
     Optional('oauth_credentials'): {
         Optional('access_token'): str,
         Optional('refresh_token'): str,
