@@ -17,6 +17,8 @@ This is a [Singer](https://singer.io) tap that reads data from spreadsheet files
 - Azure Blob Storage
 - IMAP (`imap://`)
   - Example path: `imap://imap.gmail.com/INBOX/*/*.csv`
+- SharePoint and OneDrive (`msgd://`, `sharepoint://`, `onedrive://`)
+  - Example path: `sharepoint://MySite/Documents/`
 
 Multiple individual files with the same schema can be configured & ingested into the same "Table" for processing.
 
