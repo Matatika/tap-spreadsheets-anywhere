@@ -33,6 +33,9 @@ def get_transport_params(protocol: str):
             "timeout": 10,
         }
 
+        if "password" in config:
+            connect_kwargs["password"] = config["password"]
+
         if "ssh_private_key" in config:
             with StringIO(config["ssh_private_key"]) as f:
                 private_key = RSAKey.from_private_key(f)
