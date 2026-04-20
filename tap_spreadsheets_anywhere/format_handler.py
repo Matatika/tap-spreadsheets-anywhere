@@ -29,8 +29,10 @@ def get_transport_params(protocol: str):
             "allow_agent": False,
             "look_for_keys": False,
             "timeout": 10,
-            "password": config.get("password"),
         }
+
+        if "password" in config:
+            connect_kwargs["password"] = config["password"]
 
         if "ssh_private_key" in config:
             with StringIO(config["ssh_private_key"]) as f:
