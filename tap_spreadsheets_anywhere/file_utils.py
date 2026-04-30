@@ -164,7 +164,11 @@ def get_matching_objects(table_spec, modified_since=None):
     elif protocol in ["http", "https"]:
         target_objects = convert_URL_to_file_list(table_spec)
     elif protocol in ["azure"]:
-        target_objects = list_files_in_azure_bucket(bucket,table_spec.get('search_prefix'))
+        target_objects = list_files_in_azure_bucket(
+            bucket,
+            table_spec.get("search_prefix"),
+            modified_since,
+        )
     elif protocol in ["imap"]:
         target_objects = list_files_in_imap_mailbox(
             table_spec["path"],
@@ -312,12 +316,20 @@ def list_files_in_gs_bucket(bucket, search_prefix=None):
 
     return target_objects
 
-def list_files_in_azure_bucket(container_name, search_prefix=None):
+def list_files_in_azure_bucket(
+    container_name: str,
+    search_prefix: str | None = None,
+    modified_since: datetime | None = None,
+):
     sas_key = os.environ['AZURE_STORAGE_CONNECTION_STRING']
     blob_service_client = BlobServiceClient.from_connection_string(sas_key)
     container_client = blob_service_client.get_container_client(container_name)
     blob_iterator = container_client.list_blobs(name_starts_with=search_prefix)
-    return [{'Key': blob.name, 'LastModified': blob.last_modified} for blob in blob_iterator if blob.size > 0]
+    return [
+        {"Key": blob.name, "LastModified": blob.last_modified}
+        for blob in blob_iterator
+        if blob.size > 0 and blob.last_modified >= modified_since
+    ]
 
 
 
