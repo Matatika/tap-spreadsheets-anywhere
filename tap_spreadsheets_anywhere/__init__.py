@@ -112,7 +112,7 @@ def sync(config, state, catalog):
         table_specs = [t for t in config['tables'] if t['name'] == stream.tap_stream_id]
 
         if not table_specs:
-            LOGGER.warn(f'Skipping processing for stream [{stream.tap_stream_id}] without a config block.')
+            LOGGER.warning(f'Skipping processing for stream [{stream.tap_stream_id}] without a config block.')
             continue
 
         for table_spec in table_specs:
