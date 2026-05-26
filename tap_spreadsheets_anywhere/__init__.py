@@ -109,11 +109,13 @@ def sync(config, state, catalog):
         LOGGER.info("Syncing stream:" + stream.tap_stream_id)
         catalog_schema = stream.schema.to_dict()
         state_modified_since = state.get(stream.tap_stream_id, {}).get("modified_since")
-        for table_spec in config['tables']:
-            if table_spec['name'] != stream.tap_stream_id:
-                LOGGER.warn(f'Skipping processing for stream [{stream.tap_stream_id}] without a config block.')
-                continue
+        table_specs = [t for t in config['tables'] if t['name'] == stream.tap_stream_id]
 
+        if not table_specs:
+            LOGGER.warning(f'Skipping processing for stream [{stream.tap_stream_id}] without a config block.')
+            continue
+
+        for table_spec in table_specs:
             # Allow updates to our tables specification to override any previously extracted schema in the catalog
             merged_schema = override_schema_with_config(catalog_schema, table_spec)
             singer.write_schema(
