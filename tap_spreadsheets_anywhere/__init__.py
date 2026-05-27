@@ -14,6 +14,8 @@ import tap_spreadsheets_anywhere.file_utils as file_utils
 
 LOGGER = logging.getLogger(__name__)
 
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+
 def get_abs_path(path):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
 
@@ -180,7 +182,7 @@ def main():
             catalog = args.catalog
             LOGGER.info(f"Using supplied catalog {args.catalog_path}.")
         else:
-            LOGGER.info(f"Generating catalog through sampling.")
+            LOGGER.info("Generating catalog through sampling.")
             catalog = discover(tables_config)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug(f"Catalog has streams: {catalog.to_dict()}")
