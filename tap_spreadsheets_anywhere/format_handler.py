@@ -157,7 +157,7 @@ def get_sharepoint_fs(uri):
             url_path=uri,
         )
         try:
-            fs.msgraph_get("https://graph.microsoft.com/v1.0/me")
+            fs.msgraph_get("https://graph.microsoft.com/v1.0/me/drive")
             return fs
         except httpx.HTTPStatusError as e:
             if e.response.status_code != 401:
