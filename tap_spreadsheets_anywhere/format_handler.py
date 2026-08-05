@@ -7,11 +7,11 @@ from io import StringIO
 from urllib.parse import urlparse, urlunparse
 
 import httpx
+import msgraphfs.core
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
 from imapfs.core import IMAPFileSystem
-from msgraphfs.core import MSGDriveFS
 from paramiko.rsakey import RSAKey
 from singer import utils
 
@@ -121,6 +121,27 @@ def get_imap_fs(host):
         access_token = refresh()
 
     return IMAPFileSystem(host=host, username=username, access_token=access_token)
+
+
+class MSGDriveFS(msgraphfs.core.MSGDriveFS):
+    async def _get_site_id(self):
+        """Get the ID of the site.
+
+        Address the site directly, because the superclass searches for the site, and
+        the search endpoint requires `Sites.Read.All`. Fall back to the search of the
+        superclass for a site outside `/sites/`, which the direct address cannot reach.
+        """
+        url = f"https://graph.microsoft.com/v1.0/sites/root:/sites/{self.site_name}"
+
+        try:
+            response = await self._msgraph_get(url)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 404:
+                raise
+
+            return await super()._get_site_id()
+
+        return response.json()["id"]
 
 
 @lru_cache(maxsize=None)

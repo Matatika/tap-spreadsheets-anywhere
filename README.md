@@ -212,25 +212,34 @@ JSONL files are expected to parse as one object per line, where each row in a fi
 
 This tap authenticates with target systems as described in the [smart_open documentation here](https://github.com/RaRe-Technologies/smart_open).
 
-#### SharePoint and OneDrive
+#### SharePoint
 
-The tap reads SharePoint and OneDrive files with the Microsoft Graph API. It supports two OAuth 2.0 flows:
+The tap reads SharePoint files with the Microsoft Graph API. It supports two OAuth 2.0 flows:
 
-- The **client credentials flow**. The tap authenticates as an application, with no user. Use this flow for a scheduled sync.
-- The **refresh token flow**. The tap authenticates as a user, with a refresh token that a person gets from an interactive sign-in.
+- The [client credentials flow](#client-credentials-flow). The tap authenticates as an application, with no user. Use this flow for a scheduled sync.
+- The [refresh token flow](#refresh-token-flow). The tap authenticates as a user, with a refresh token that a person gets from an interactive sign-in.
 
 The tap uses the client credentials flow when `oauth_credentials` holds no `refresh_token`.
 
 ##### Client credentials flow
 
-Configure the credentials of your Azure AD App Registration under `oauth_credentials`:
+Create the App Registration under **App registrations** > **New registration**, in the Microsoft Entra admin center or in the **Microsoft Entra ID** section of the Azure portal. Use these values:
+
+- **Supported account types**: **Accounts in this organizational directory only**, which is the single-tenant option.
+- **Redirect URI**: leave this field empty. This flow has no sign-in, so it needs no redirect URI.
+- **Certificates & secrets**: a client secret. Copy the **Value** column, and not the **Secret ID** column. The portal masks the value after you leave the page. Record the expiry date also, because the tap will fail when the secret expires.
+- **API permissions**: the **Application permission** `Sites.Read.All` for Microsoft Graph, which lets the application read all sites of the tenant. Use `Sites.Selected` in place of `Sites.Read.All` to give the application access to named sites only, as [Restrict the access to named sites](#restrict-the-access-to-named-sites) describes. Then select **Grant admin consent for \<tenant\>**. The permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
+
+You can delete the `User.Read` permission that the portal adds to a new App Registration. It is a delegated permission, and the tap does not use it.
+
+Then configure the credentials of the App Registration under `oauth_credentials`. The Overview page of the App Registration shows the application (client) ID and the directory (tenant) ID:
 
 ```json
 {
     "oauth_credentials": {
-        "client_id": "00000000-0000-0000-0000-000000000000",
-        "client_secret": "<client secret value>",
-        "tenant_id": "00000000-0000-0000-0000-000000000000"
+        "client_id": "<client_id>",
+        "client_secret": "<client_secret>",
+        "tenant_id": "<tenant_id>"
     }
 }
 ```
@@ -239,31 +248,89 @@ Configure the credentials of your Azure AD App Registration under `oauth_credent
 | --- | --- | --- |
 | `client_id` | Yes | The application (client) ID of the App Registration. |
 | `client_secret` | Yes | A client secret value of the App Registration. |
-| `tenant_id` | Yes | The directory (tenant) ID of the App Registration. Give a tenant ID or a verified domain, such as `contoso.onmicrosoft.com`. |
+| `tenant_id` | Yes | The directory (tenant) ID of the App Registration. Give a tenant ID or a verified domain, such as `<tenant>.onmicrosoft.com`. |
 
-The tap requests an access token from `https://login.microsoftonline.com/<tenant_id>/oauth2/v2.0/token` when it makes the first request. It requests a new access token after the access token expires. There is no refresh token, and no person must sign in.
+If a tenant administrator does not grant admin consent, Microsoft Graph responds with `401 Unauthorized` and no explicit notice that consent is absent:
 
-Create the App Registration in the Microsoft Entra admin center, under **Applications** > **App registrations** > **New registration**, with these values:
+```json
+{
+    "error": {
+        "code": "generalException",
+        "message": "General exception while processing",
+        "innerError": {
+            "code": "spException",
+            "innerError": {
+                "code": "other"
+            },
+            "date": "<date>",
+            "request-id": "<request_id>",
+            "client-request-id": "<client_request_id>"
+        }
+    }
+}
+```
 
-- **Supported account types**: **Accounts in this organizational directory only**, which is the single-tenant option.
-- **Redirect URI**: leave this field empty. This flow has no sign-in, so it needs no redirect URI.
-- **Certificates & secrets**: a client secret. Copy the **Value** column, and not the **Secret ID** column. The portal masks the value after you leave the page. Record the expiry date also, because the tap fails after the secret expires. A client secret is valid for 24 months at most.
-- **API permissions**: the **Application permission** `Sites.Read.All` for Microsoft Graph. Then select **Grant admin consent for \<tenant\>**. The permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
+###### Restrict the access to named sites
 
-You can delete the `User.Read` permission that the portal adds to a new App Registration. It is a delegated permission, and the tap does not use it.
+The `Sites.Selected` application permission grants no access on consent. A SharePoint administrator then grants the application access to each site that the tap must read. This keeps the access to the sites that you select, and you can remove the access one site at a time.
 
-Then give the application (client) ID, the client secret value, and the directory (tenant) ID to Meltano. The Overview page of the App Registration shows the two IDs.
+The Microsoft Entra admin center and the Azure portal cannot grant a site to an application. Only the Microsoft Graph API can. Graph Explorer is a client for that API, so the steps below use Graph Explorer to make the requests.
 
-These permissions are the set that the tap needs to find a site, to list a document library, and to read a file. You decide which permissions to consent to. The tap cannot read a site or a file that your consent does not cover.
+These are the steps to grant the access:
 
-If a tenant administrator does not grant admin consent, Microsoft Graph gives a `401 Unauthorized` response with the error code `generalException`, and the inner error code `spException`. This response does not tell you that the consent is absent.
+1. In **API permissions**, remove `Sites.Read.All`. Add the **Application permission** `Sites.Selected` for Microsoft Graph. Then select **Grant admin consent for \<tenant\>**.
 
-Note these limits of the client credentials flow:
+    **API permissions** holds the permissions that the application requests. It does not hold the permissions that the application has. Go to **Enterprise applications** also, select the application, and revoke `Sites.Read.All` under **Security** > **Permissions**. The application keeps the granted permission until you revoke it there, so a request that you expect to fail gives a `200 OK` response. **API permissions** lists such a permission under **Other permissions granted for \<tenant\>**.
 
-- An application permission is tenant-wide. `Sites.Read.All` lets the application read all sites of the tenant. There is no signed-in user to make the access smaller.
-- There is no user, so the tap cannot read a personal OneDrive drive. Use the refresh token flow for a personal OneDrive drive.
-- The tap does not support the `Sites.Selected` permission, which grants access to named sites only. The tap finds a site with the Microsoft Graph search endpoint `/sites?search=<site name>`, which requires `Sites.Read.All`. A token with `Sites.Selected` alone cannot call this endpoint.
-- The `Files.Read.Selected` permission is not an alternative. It is a legacy delegated permission for Office 365 file handlers, and Microsoft does not support it for direct calls to the Microsoft Graph API.
+    A change of permissions can take some minutes to apply. An access token also keeps the permissions that it had at issue time, for the full lifetime of the token.
+2. Open [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer), and sign in as a tenant administrator.
+
+    Consent to `Sites.FullControl.All` on the **Modify permissions** tab. Graph Explorer makes the requests of step 3 and step 4 as itself, so Graph Explorer needs this permission to grant a site. The consent dialog must show **Consent on behalf of your organization**. An account without the Global Administrator, Privileged Role Administrator, or Cloud Application Administrator role sees the message **Need admin approval** instead, and cannot continue.
+
+    Do not give `Sites.FullControl.All` to the App Registration of the tap, even for a short time. This permission gives write access to every site of the tenant.
+3. In Graph Explorer, get the ID of the site:
+
+    ```http
+    GET https://graph.microsoft.com/v1.0/sites/<host>:/sites/<site_name>
+    ```
+
+    `<host>` is the SharePoint host of the tenant, such as `<tenant>.sharepoint.com`. `<site_name>` is the last part of the URL of the site.
+
+4. Grant the read role on that site to the application:
+
+    ```http
+    POST https://graph.microsoft.com/v1.0/sites/<site_id>/permissions
+
+    {
+        "roles": ["read"],
+        "grantedToIdentities": [
+            {
+                "application": {
+                    "id": "<client_id>",
+                    "displayName": "<application_name>"
+                }
+            }
+        ]
+    }
+    ```
+
+    `id` must be the application (client) ID of the App Registration. `displayName` is a label only, so any value works. Give the name of the App Registration, to make the permission easy to recognise in a later request.
+
+    The App Registration of the tap cannot make this request for itself.
+
+    Repeat for each site.
+
+To remove the access to a site, get the ID of the site (as in step 3) and then list the permissions of that site:
+
+```http
+GET https://graph.microsoft.com/v1.0/sites/<site_id>/permissions
+```
+
+Each item of the response holds an `id`, and a `grantedToIdentitiesV2` value that names the application. Find the item for the App Registration, and delete that permission:
+
+```http
+DELETE https://graph.microsoft.com/v1.0/sites/<site_id>/permissions/<permission_id>
+```
 
 ##### Refresh token flow
 
@@ -272,11 +339,11 @@ Configure a refresh token under `oauth_credentials`, with either the credentials
 ```json
 {
     "oauth_credentials": {
-        "client_id": "00000000-0000-0000-0000-000000000000",
-        "client_secret": "<client secret value>",
-        "tenant_id": "00000000-0000-0000-0000-000000000000",
-        "refresh_token": "<refresh token>",
-        "access_token": "<access token>"
+        "client_id": "<client_id>",
+        "client_secret": "<client_secret>",
+        "tenant_id": "<tenant_id>",
+        "refresh_token": "<refresh_token>",
+        "access_token": "<access_token>"
     }
 }
 ```
@@ -291,21 +358,19 @@ Configure a refresh token under `oauth_credentials`, with either the credentials
 | `refresh_proxy_url_auth` | Yes, with a refresh proxy | The value of the `Authorization` header for the refresh proxy request. |
 | `access_token` | No | An access token. The tap gets a new access token with the refresh token when this setting is absent, or when the access token is not valid. |
 
-If you set `refresh_proxy_url` and `refresh_proxy_url_auth`, the tap requests the access token from that refresh proxy, and not from Microsoft. The proxy holds the credentials of the App Registration, so `client_id` and `client_secret` are not necessary, and the proxy keeps the refresh token current. This is the behaviour for an App Registration that Meltano manages:
+If you set `refresh_proxy_url` and `refresh_proxy_url_auth`, `client_id` and `client_secret` are not necessary. The refresh proxy holds the credentials of the App Registration, and keeps the refresh token current. This is the behaviour for an App Registration that Meltano manages:
 
 ```json
 {
     "oauth_credentials": {
-        "refresh_token": "<refresh token>",
+        "refresh_token": "<refresh_token>",
         "refresh_proxy_url": "https://app.meltano.com/api/tokens/oauth-microsoft/token",
         "refresh_proxy_url_auth": "Bearer <token>"
     }
 }
 ```
 
-The tap requests the access token directly from Microsoft when you do not set the refresh proxy settings. This request needs `client_id` and `client_secret`.
-
-This flow uses delegated Microsoft Graph permissions, so a token gives the tap the content that the signed-in user can read, and no more. The user who completes the authorization flow therefore sets the upper limit of the access.
+This flow uses delegated Microsoft Graph permissions, so the tap reads the content that the signed-in user can read, and no more. The user who completes the authorization flow therefore sets the upper limit of the access.
 
 The tap does not persist the refresh token that Microsoft returns on each refresh. Microsoft keeps the configured refresh token valid for 90 days of inactivity. Microsoft also makes a refresh token not valid when the password of the user changes, when an administrator revokes the sessions of the user, or when a Conditional Access policy applies. Authorize the tap again when one of these events occurs, and before the inactivity period ends.
 
