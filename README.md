@@ -212,6 +212,103 @@ JSONL files are expected to parse as one object per line, where each row in a fi
 
 This tap authenticates with target systems as described in the [smart_open documentation here](https://github.com/RaRe-Technologies/smart_open).
 
+#### SharePoint and OneDrive
+
+The tap reads SharePoint and OneDrive files with the Microsoft Graph API. It supports two OAuth 2.0 flows:
+
+- The **client credentials flow**. The tap authenticates as an application, with no user. Use this flow for a scheduled sync.
+- The **refresh token flow**. The tap authenticates as a user, with a refresh token that a person gets from an interactive sign-in.
+
+The tap uses the client credentials flow when `oauth_credentials` holds no `refresh_token`.
+
+##### Client credentials flow
+
+Configure the credentials of your Azure AD App Registration under `oauth_credentials`:
+
+```json
+{
+    "oauth_credentials": {
+        "client_id": "00000000-0000-0000-0000-000000000000",
+        "client_secret": "<client secret value>",
+        "tenant_id": "00000000-0000-0000-0000-000000000000"
+    }
+}
+```
+
+| Setting | Required | Description |
+| --- | --- | --- |
+| `client_id` | Yes | The application (client) ID of the App Registration. |
+| `client_secret` | Yes | A client secret value of the App Registration. |
+| `tenant_id` | Yes | The directory (tenant) ID of the App Registration. Give a tenant ID or a verified domain, such as `contoso.onmicrosoft.com`. |
+
+The tap requests an access token from `https://login.microsoftonline.com/<tenant_id>/oauth2/v2.0/token` when it makes the first request. It requests a new access token after the access token expires. There is no refresh token, and no person must sign in.
+
+Create the App Registration in the Microsoft Entra admin center, under **Applications** > **App registrations** > **New registration**, with these values:
+
+- **Supported account types**: **Accounts in this organizational directory only**, which is the single-tenant option.
+- **Redirect URI**: leave this field empty. This flow has no sign-in, so it needs no redirect URI.
+- **Certificates & secrets**: a client secret. Copy the **Value** column, and not the **Secret ID** column. The portal masks the value after you leave the page. Record the expiry date also, because the tap fails after the secret expires. A client secret is valid for 24 months at most.
+- **API permissions**: the **Application permissions** for Microsoft Graph, `Files.Read.All` and `Sites.Read.All`. Then select **Grant admin consent for \<tenant\>**. Each permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
+
+You can delete the `User.Read` permission that the portal adds to a new App Registration. It is a delegated permission, and the tap does not use it.
+
+Then give the application (client) ID, the client secret value, and the directory (tenant) ID to Meltano. The Overview page of the App Registration shows the two IDs.
+
+These permissions are the set that the tap needs to find a site, to list a document library, and to read a file. You decide which permissions to consent to. The tap cannot read a site or a file that your consent does not cover.
+
+If a tenant administrator does not grant admin consent, Microsoft Graph gives a `401 Unauthorized` response with the error code `generalException`, and the inner error code `spException`. This response does not tell you that the consent is absent.
+
+Note these limits of the client credentials flow:
+
+- An application permission is tenant-wide. `Sites.Read.All` lets the application read all sites of the tenant. There is no signed-in user to make the access smaller.
+- There is no user, so the tap cannot read a personal OneDrive drive. Use the refresh token flow for a personal OneDrive drive.
+- The tap does not support the `Sites.Selected` permission, which grants access to named sites only. The tap finds a site with the Microsoft Graph search endpoint `/sites?search=<site name>`, which requires `Sites.Read.All`. A token with `Sites.Selected` alone cannot call this endpoint.
+- The `Files.Read.Selected` permission is not an alternative. It is a legacy delegated permission for Office 365 file handlers, and Microsoft does not support it for direct calls to the Microsoft Graph API.
+
+##### Refresh token flow
+
+Configure a refresh token under `oauth_credentials`, with either the credentials of the App Registration or the refresh proxy settings:
+
+```json
+{
+    "oauth_credentials": {
+        "client_id": "00000000-0000-0000-0000-000000000000",
+        "client_secret": "<client secret value>",
+        "tenant_id": "00000000-0000-0000-0000-000000000000",
+        "refresh_token": "<refresh token>",
+        "access_token": "<access token>"
+    }
+}
+```
+
+| Setting | Required | Description |
+| --- | --- | --- |
+| `refresh_token` | Yes | A refresh token for a user of the tenant. |
+| `client_id` | Yes, without a refresh proxy | The application (client) ID of the App Registration. |
+| `client_secret` | Yes, without a refresh proxy | A client secret value of the App Registration. |
+| `tenant_id` | No | The directory (tenant) ID of the App Registration. The default value is `common`, which works for a multi-tenant App Registration only. A single-tenant App Registration rejects `common` with error `AADSTS50194`. |
+| `refresh_proxy_url` | Yes, with a refresh proxy | The URL of the refresh proxy. |
+| `refresh_proxy_url_auth` | Yes, with a refresh proxy | The value of the `Authorization` header for the refresh proxy request. |
+| `access_token` | No | An access token. The tap gets a new access token with the refresh token when this setting is absent, or when the access token is not valid. |
+
+If you set `refresh_proxy_url` and `refresh_proxy_url_auth`, the tap requests the access token from that refresh proxy, and not from Microsoft. The proxy holds the credentials of the App Registration, so `client_id` and `client_secret` are not necessary, and the proxy keeps the refresh token current. This is the behaviour for an App Registration that Meltano manages:
+
+```json
+{
+    "oauth_credentials": {
+        "refresh_token": "<refresh token>",
+        "refresh_proxy_url": "https://app.meltano.com/api/tokens/oauth-microsoft/token",
+        "refresh_proxy_url_auth": "Bearer <token>"
+    }
+}
+```
+
+The tap requests the access token directly from Microsoft when you do not set the refresh proxy settings. This request needs `client_id` and `client_secret`.
+
+This flow uses delegated Microsoft Graph permissions, so a token gives the tap the content that the signed-in user can read, and no more. The user who completes the authorization flow therefore sets the upper limit of the access.
+
+The tap does not persist the refresh token that Microsoft returns on each refresh. Microsoft keeps the configured refresh token valid for 90 days of inactivity. Microsoft also makes a refresh token not valid when the password of the user changes, when an administrator revokes the sessions of the user, or when a Conditional Access policy applies. Authorize the tap again when one of these events occurs, and before the inactivity period ends.
+
 ### State 
 
 This tap is designed to continually poll a configured directory for any unprocessed files that match a table configuration and to process any 
