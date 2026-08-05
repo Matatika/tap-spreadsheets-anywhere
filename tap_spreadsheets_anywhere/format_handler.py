@@ -7,12 +7,11 @@ from io import StringIO
 from urllib.parse import urlparse, urlunparse
 
 import httpx
-import requests
+import msgraphfs.core
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
 from imapfs.core import IMAPFileSystem
-from msgraphfs.core import MSGDriveFS
 from paramiko.rsakey import RSAKey
 from singer import utils
 
@@ -20,6 +19,7 @@ import tap_spreadsheets_anywhere.csv_handler
 import tap_spreadsheets_anywhere.excel_handler
 import tap_spreadsheets_anywhere.json_handler
 import tap_spreadsheets_anywhere.jsonl_handler
+from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
 
 
 def get_transport_params(protocol: str):
@@ -100,17 +100,8 @@ def get_imap_fs(host):
     transport_params = get_transport_params("imap")
 
     def refresh():
-        response = requests.post(
-            transport_params["refresh_proxy_url"],
-            headers={"Authorization": transport_params["refresh_proxy_url_auth"]},
-            json={
-                "grant_type": "refresh_token",
-                "refresh_token": transport_params["refresh_token"],
-            },
-        )
-
-        response.raise_for_status()
-        return response.json()["access_token"]
+        # the IMAP client authenticates with the access token only
+        return refresh_microsoft_token(transport_params)["access_token"]
 
     username = transport_params["username"]
 
@@ -132,22 +123,30 @@ def get_imap_fs(host):
     return IMAPFileSystem(host=host, username=username, access_token=access_token)
 
 
+class MSGDriveFS(msgraphfs.core.MSGDriveFS):
+    async def _get_site_id(self):
+        """Get the ID of the site.
+
+        Address the site directly, because the superclass searches for the site, and
+        the search endpoint requires `Sites.Read.All`. Fall back to the search of the
+        superclass for a site outside `/sites/`, which the direct address cannot reach.
+        """
+        url = f"https://graph.microsoft.com/v1.0/sites/root:/sites/{self.site_name}"
+
+        try:
+            response = await self._msgraph_get(url)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 404:
+                raise
+
+            return await super()._get_site_id()
+
+        return response.json()["id"]
+
+
 @lru_cache(maxsize=None)
 def get_sharepoint_fs(uri):
     transport_params = get_transport_params("sharepoint")
-
-    def refresh():
-        response = requests.post(
-            transport_params["refresh_proxy_url"],
-            headers={"Authorization": transport_params["refresh_proxy_url_auth"]},
-            json={
-                "grant_type": "refresh_token",
-                "refresh_token": transport_params["refresh_token"],
-            },
-        )
-
-        response.raise_for_status()
-        return response.json()
 
     if "access_token" in transport_params:
         fs = MSGDriveFS(
@@ -163,10 +162,28 @@ def get_sharepoint_fs(uri):
             if e.response.status_code != 401:
                 raise
 
-    return MSGDriveFS(
-        oauth2_client_params={"token": refresh()},
-        url_path=uri,
+    if "refresh_token" in transport_params:
+        return MSGDriveFS(
+            oauth2_client_params={"token": refresh_microsoft_token(transport_params)},
+            url_path=uri,
+        )
+
+    if {"client_id", "client_secret", "tenant_id"} <= transport_params.keys():
+        return MSGDriveFS(
+            client_id=transport_params["client_id"],
+            client_secret=transport_params["client_secret"],
+            tenant_id=transport_params["tenant_id"],
+            url_path=uri,
+        )
+
+    lines = (
+        "Insufficient `oauth_credentials` configuration to authenticate with SharePoint. Must satisfy one of:",
+        "  - `access_token`",
+        "  - `refresh_token`, `client_id`, `client_secret`",
+        "  - `refresh_token`, `refresh_proxy_url`, `refresh_proxy_url_auth`",
+        "  - `client_id`, `client_secret`, `tenant_id`",
     )
+    raise ValueError("\n".join(lines))
 
 def get_streamreader(
     uri: str,

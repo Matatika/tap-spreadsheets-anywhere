@@ -55,6 +55,9 @@ CONFIG_CONTRACT = Schema({
         Optional('refresh_token'): str,
         Optional('refresh_proxy_url'): str,
         Optional('refresh_proxy_url_auth'): str,
+        Optional('client_id'): str,
+        Optional('client_secret'): str,
+        Optional('tenant_id'): str,
         Extra: object,
     },
 })
