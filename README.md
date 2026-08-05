@@ -248,7 +248,7 @@ Create the App Registration in the Microsoft Entra admin center, under **Applica
 - **Supported account types**: **Accounts in this organizational directory only**, which is the single-tenant option.
 - **Redirect URI**: leave this field empty. This flow has no sign-in, so it needs no redirect URI.
 - **Certificates & secrets**: a client secret. Copy the **Value** column, and not the **Secret ID** column. The portal masks the value after you leave the page. Record the expiry date also, because the tap fails after the secret expires. A client secret is valid for 24 months at most.
-- **API permissions**: the **Application permissions** for Microsoft Graph, `Files.Read.All` and `Sites.Read.All`. Then select **Grant admin consent for \<tenant\>**. Each permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
+- **API permissions**: the **Application permission** `Sites.Read.All` for Microsoft Graph. Then select **Grant admin consent for \<tenant\>**. The permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
 
 You can delete the `User.Read` permission that the portal adds to a new App Registration. It is a delegated permission, and the tap does not use it.
 
