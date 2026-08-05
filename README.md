@@ -223,16 +223,16 @@ The tap uses the client credentials flow when `oauth_credentials` holds no `refr
 
 ##### Client credentials flow
 
-Create the App Registration under **App registrations** > **New registration**, in the Microsoft Entra admin center or in the **Microsoft Entra ID** section of the Azure portal. Use these values:
+Create the app registration under **App registrations** > **New registration**, in the Microsoft Entra admin center or in the **Microsoft Entra ID** section of the Azure portal. Use these values:
 
 - **Supported account types**: **Accounts in this organizational directory only**, which is the single-tenant option.
 - **Redirect URI**: leave this field empty. This flow has no sign-in, so it needs no redirect URI.
 - **Certificates & secrets**: a client secret. Copy the **Value** column, and not the **Secret ID** column. The portal masks the value after you leave the page. Record the expiry date also, because the tap will fail when the secret expires.
 - **API permissions**: the **Application permission** `Sites.Read.All` for Microsoft Graph, which lets the application read all sites of the tenant. Use `Sites.Selected` in place of `Sites.Read.All` to give the application access to named sites only, as [Restrict the access to named sites](#restrict-the-access-to-named-sites) describes. Then select **Grant admin consent for \<tenant\>**. The permission must show the **Granted** state. An application permission has no user consent, so a tenant administrator must grant the consent.
 
-You can delete the `User.Read` permission that the portal adds to a new App Registration. It is a delegated permission, and the tap does not use it.
+You can delete the `User.Read` permission that the portal adds to a new app registration. It is a delegated permission, and the tap does not use it.
 
-Then configure the credentials of the App Registration under `oauth_credentials`. The Overview page of the App Registration shows the application (client) ID and the directory (tenant) ID:
+Then configure the credentials of the app registration under `oauth_credentials`. The **Overview** page of the app registration shows the application (client) ID and the directory (tenant) ID:
 
 ```json
 {
@@ -246,9 +246,9 @@ Then configure the credentials of the App Registration under `oauth_credentials`
 
 | Setting | Required | Description |
 | --- | --- | --- |
-| `client_id` | Yes | The application (client) ID of the App Registration. |
-| `client_secret` | Yes | A client secret value of the App Registration. |
-| `tenant_id` | Yes | The directory (tenant) ID of the App Registration. Give a tenant ID or a verified domain, such as `<tenant>.onmicrosoft.com`. |
+| `client_id` | Yes | The application (client) ID of the app registration. |
+| `client_secret` | Yes | A client secret value of the app registration. |
+| `tenant_id` | Yes | The directory (tenant) ID of the app registration. Give a tenant ID or a verified domain, such as `<tenant>.onmicrosoft.com`. |
 
 If a tenant administrator does not grant admin consent, Microsoft Graph responds with `401 Unauthorized` and no explicit notice that consent is absent:
 
@@ -287,7 +287,7 @@ These are the steps to grant the access:
 
     Consent to `Sites.FullControl.All` on the **Modify permissions** tab. Graph Explorer makes the requests of step 3 and step 4 as itself, so Graph Explorer needs this permission to grant a site. The consent dialog must show **Consent on behalf of your organization**. An account without the Global Administrator, Privileged Role Administrator, or Cloud Application Administrator role sees the message **Need admin approval** instead, and cannot continue.
 
-    Do not give `Sites.FullControl.All` to the App Registration of the tap, even for a short time. This permission gives write access to every site of the tenant.
+    Do not give `Sites.FullControl.All` to the app registration of the tap, even for a short time. This permission gives write access to every site of the tenant.
 3. In Graph Explorer, get the ID of the site:
 
     ```http
@@ -314,9 +314,9 @@ These are the steps to grant the access:
     }
     ```
 
-    `id` must be the application (client) ID of the App Registration. `displayName` is a label only, so any value works. Give the name of the App Registration, to make the permission easy to recognise in a later request.
+    `id` must be the application (client) ID of the app registration. `displayName` is a label only, so any value works. Give the name of the app registration, to make the permission easy to recognise in a later request.
 
-    The App Registration of the tap cannot make this request for itself.
+    The app registration of the tap cannot make this request for itself.
 
     Repeat for each site.
 
@@ -326,7 +326,7 @@ To remove the access to a site, get the ID of the site (as in step 3) and then l
 GET https://graph.microsoft.com/v1.0/sites/<site_id>/permissions
 ```
 
-Each item of the response holds an `id`, and a `grantedToIdentitiesV2` value that names the application. Find the item for the App Registration, and delete that permission:
+Each item of the response holds an `id`, and a `grantedToIdentitiesV2` value that names the application. Find the item for the app registration, and delete that permission:
 
 ```http
 DELETE https://graph.microsoft.com/v1.0/sites/<site_id>/permissions/<permission_id>
@@ -334,7 +334,7 @@ DELETE https://graph.microsoft.com/v1.0/sites/<site_id>/permissions/<permission_
 
 ##### Refresh token flow
 
-Configure a refresh token under `oauth_credentials`, with either the credentials of the App Registration or the refresh proxy settings:
+Configure a refresh token under `oauth_credentials`, with either the credentials of the app registration or the refresh proxy settings:
 
 ```json
 {
@@ -351,14 +351,14 @@ Configure a refresh token under `oauth_credentials`, with either the credentials
 | Setting | Required | Description |
 | --- | --- | --- |
 | `refresh_token` | Yes | A refresh token for a user of the tenant. |
-| `client_id` | Yes, without a refresh proxy | The application (client) ID of the App Registration. |
-| `client_secret` | Yes, without a refresh proxy | A client secret value of the App Registration. |
-| `tenant_id` | No | The directory (tenant) ID of the App Registration. The default value is `common`, which works for a multi-tenant App Registration only. A single-tenant App Registration rejects `common` with error `AADSTS50194`. |
+| `client_id` | Yes, without a refresh proxy | The application (client) ID of the app registration. |
+| `client_secret` | Yes, without a refresh proxy | A client secret value of the app registration. |
+| `tenant_id` | No | The directory (tenant) ID of the app registration. The default value is `common`, which works for a multi-tenant app registration only. A single-tenant app registration rejects `common` with error `AADSTS50194`. |
 | `refresh_proxy_url` | Yes, with a refresh proxy | The URL of the refresh proxy. |
 | `refresh_proxy_url_auth` | Yes, with a refresh proxy | The value of the `Authorization` header for the refresh proxy request. |
 | `access_token` | No | An access token. The tap gets a new access token with the refresh token when this setting is absent, or when the access token is not valid. |
 
-If you set `refresh_proxy_url` and `refresh_proxy_url_auth`, `client_id` and `client_secret` are not necessary. The refresh proxy holds the credentials of the App Registration, and keeps the refresh token current. This is the behaviour for an App Registration that Meltano manages:
+If you set `refresh_proxy_url` and `refresh_proxy_url_auth`, `client_id` and `client_secret` are not necessary. The refresh proxy holds the credentials of the app registration, and keeps the refresh token current. This is the behaviour for an app registration that Meltano manages:
 
 ```json
 {
