@@ -232,7 +232,7 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
                 raise ValueError(f"Read more than {max_results} records from the path {uri_path}. Use a more specific "
                                  f"search_prefix")
 
-    LOGGER.info("Found {} files.".format(entries))
+    LOGGER.info("Found {} files.".format(len(entries)))
     return entries
 
 def convert_URL_to_file_list(table_spec):
@@ -276,7 +276,7 @@ def list_files_in_ftp_server(uri, search_prefix=None):
                 raise print(f"Read more than {max_results} records from the path {uri_path}. Use a more specific "
                              f"search_prefix")
 
-    LOGGER.info("Found {} files.".format(entries))
+    LOGGER.info("Found {} files.".format(len(entries)))
     return entries
 
 def raise_error(error):
