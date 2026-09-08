@@ -1,5 +1,4 @@
 import logging
-import pickle
 from collections.abc import MutableMapping
 
 import dateutil
@@ -9,12 +8,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def convert_row(row, schema):
-    t_schema = pickle.loads(pickle.dumps(schema))
+    properties = schema["properties"]
     to_return = {}
     for key, value in row.items():
-        if key in t_schema["properties"]:
-            field_schema = t_schema["properties"][key]
-            declared_types = field_schema.get("type", ["null", "string"])
+        if key in properties:
+            declared_types = properties[key].get("type", ["null", "string"])
         else:
             declared_types = ["string", "null"]
 
