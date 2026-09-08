@@ -2,9 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import dateutil
 
-from tap_spreadsheets_anywhere import (
-    file_utils,
-)
+from tap_spreadsheets_anywhere import file_utils
 from tap_spreadsheets_anywhere.configuration import TableSpec
 
 TEST_CRAWL_SPEC = {
