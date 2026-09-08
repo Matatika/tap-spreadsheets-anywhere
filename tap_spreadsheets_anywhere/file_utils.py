@@ -389,7 +389,7 @@ def list_files_in_azure_bucket(
     return [
         {"Key": blob.name, "LastModified": blob.last_modified}
         for blob in blob_iterator
-        if blob.size > 0 and blob.last_modified >= modified_since
+        if blob.size > 0 and (modified_since is None or blob.last_modified >= modified_since)
     ]
 
 
