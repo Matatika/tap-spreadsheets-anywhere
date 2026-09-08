@@ -58,6 +58,10 @@ fallback-version = "0.0.0dev0"
 allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = [ "tap_spreadsheets_anywhere" ]
+# Test fixtures include intentionally byte-identical files (for format-detection tests),
+# which check-wheel-contents flags as W002 duplicates - and end users don't need the test
+# suite installed anyway.
+exclude = [ "tap_spreadsheets_anywhere/test" ]
 
 [tool.ruff]
 line-length = 120
