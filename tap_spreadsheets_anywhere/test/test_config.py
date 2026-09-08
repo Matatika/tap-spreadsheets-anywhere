@@ -1,4 +1,3 @@
-import unittest
 from datetime import datetime, timedelta, timezone
 
 import dateutil
@@ -62,17 +61,16 @@ TEST_TABLE_SPEC = {
 }
 
 
-class TestFormatHandler(unittest.TestCase):
+class TestFormatHandler:
     def test_config_by_crawl(self):
         crawl_paths = [x for x in TEST_CRAWL_SPEC["tables"] if x.get("crawl_config")]
         config_struct = file_utils.config_by_crawl(crawl_paths)
-        self.assertTrue(
-            config_struct["tables"][0]["name"] == "excel_with_bad_newlinesxlsx",
-            "config did not crawl and parse as expected!",
+        assert config_struct["tables"][0]["name"] == "excel_with_bad_newlinesxlsx", (
+            "config did not crawl and parse as expected!"
         )
 
 
-class TestConfigStartDate(unittest.TestCase):
+class TestConfigStartDate:
     def test_config_with_start_date_less_than_file_modified_date(self):
         table_spec = TEST_TABLE_SPEC["tables"][0]
         modified_since = dateutil.parser.parse(table_spec.start_date)
@@ -89,7 +87,7 @@ class TestConfigStartDate(unittest.TestCase):
         assert len(target_files) == 0
 
 
-class TestConfigIgnoreState(unittest.TestCase):
+class TestConfigIgnoreState:
     def test_config_ignore_state_true(self):
         table_spec = TEST_TABLE_SPEC["tables"][2]
 

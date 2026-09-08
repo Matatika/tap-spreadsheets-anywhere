@@ -1,7 +1,6 @@
 import codecs
 import json
 import logging
-import unittest
 from datetime import datetime
 from unittest.mock import patch
 
@@ -184,7 +183,7 @@ TEST_TABLE_SPEC = [
 ]
 
 
-class TestFormatHandler(unittest.TestCase):
+class TestFormatHandler:
     def test_custom_config(self):
         configuration.CONFIG_CONTRACT(RAW_TABLE_SPEC_FOR_CONTRACT_TEST)
 
@@ -193,30 +192,21 @@ class TestFormatHandler(unittest.TestCase):
         iterator = get_row_iterator(TEST_TABLE_SPEC[2], test_filename_uri)
 
         for row in iterator:
-            self.assertTrue(
-                isinstance(row["id"], (float, int)),
-                "Parsed ID is not a number for: {}".format(row["id"]),
-            )
+            assert isinstance(row["id"], (float, int)), "Parsed ID is not a number for: {}".format(row["id"])
 
     def test_handle_newlines_local_json(self):
         test_filename_uri = "./tap_spreadsheets_anywhere/test/sample.json"
         iterator = get_row_iterator(TEST_TABLE_SPEC[3], test_filename_uri)
 
         for row in iterator:
-            self.assertTrue(
-                isinstance(row["id"], (float, int)),
-                "Parsed ID is not a number for: {}".format(row["id"]),
-            )
+            assert isinstance(row["id"], (float, int)), "Parsed ID is not a number for: {}".format(row["id"])
 
     def test_strip_newlines_local_custom_mini(self):
         test_filename_uri = "./tap_spreadsheets_anywhere/test/sample_with_bad_newlines.csv"
         iterator = get_row_iterator(TEST_TABLE_SPEC[0], test_filename_uri)
 
         for row in iterator:
-            self.assertTrue(
-                row["id"].isnumeric(),
-                "Parsed ID is not a number for: {}".format(row["id"]),
-            )
+            assert row["id"].isnumeric(), "Parsed ID is not a number for: {}".format(row["id"])
 
     def test_strip_newlines_monkey_patch_locally(self):
         """Load the file in binary mode to force the use of StreamHandler and the monkey patch"""
@@ -228,10 +218,7 @@ class TestFormatHandler(unittest.TestCase):
         iterator = csv_handler.get_row_iterator(TEST_TABLE_SPEC[0], reader)
 
         for row in iterator:
-            self.assertTrue(
-                row["id"].isnumeric(),
-                "Parsed ID is not a number for: {}".format(row["id"]),
-            )
+            assert row["id"].isnumeric(), "Parsed ID is not a number for: {}".format(row["id"])
 
     def test_smart_columns(self):
         with patch("sys.stdout", new_callable=StringIO) as fake_out:
@@ -249,18 +236,16 @@ class TestFormatHandler(unittest.TestCase):
 
             raw_records = fake_out.getvalue().split("\n")
             records = [json.loads(raw) for raw in raw_records if raw]
-            self.assertEqual(
-                records_streamed,
-                len(records),
-                "Number records written to the pipe differed from records read from the pipe.",
+            assert records_streamed == len(records), (
+                "Number records written to the pipe differed from records read from the pipe."
             )
-            self.assertTrue(records[0]["type"] == "RECORD")
-            self.assertTrue(len(records[0]) == 3)
+            assert records[0]["type"] == "RECORD"
+            assert len(records[0]) == 3
             # 3 named columns (id, name, description) + 1 for the fixture's trailing
             # blank-header columns (which collapse to a single "" key) + 4 _smart_source_* metadata fields.
-            self.assertTrue(len(records[0]["record"]) == 8)
-            self.assertTrue("_smart_source_bucket" in records[0]["record"])
-            self.assertTrue("_smart_source_lineno" in records[0]["record"])
+            assert len(records[0]["record"]) == 8
+            assert "_smart_source_bucket" in records[0]["record"]
+            assert "_smart_source_lineno" in records[0]["record"]
 
     def test_local_bucket(self):
         table_spec = TEST_TABLE_SPEC[1]
@@ -278,7 +263,7 @@ class TestFormatHandler(unittest.TestCase):
         iterator = get_row_iterator(TEST_TABLE_SPEC[4], target_uri)
 
         row = next(iterator)
-        self.assertTrue(int(row["id"]) > 0, row["id"] + " was not positive")
+        assert int(row["id"]) > 0, row["id"] + " was not positive"
 
     def test_indirect_https_bucket(self):
         table_spec = TEST_TABLE_SPEC[5]
@@ -290,7 +275,7 @@ class TestFormatHandler(unittest.TestCase):
         iterator = get_row_iterator(TEST_TABLE_SPEC[5], target_uri)
 
         row = next(iterator)
-        self.assertTrue(row["year"] == "1952", "Row did not contain expected data")
+        assert row["year"] == "1952", "Row did not contain expected data"
 
     def test_renamed_https_object(self):
         table_spec = TEST_TABLE_SPEC[6]
@@ -302,7 +287,7 @@ class TestFormatHandler(unittest.TestCase):
         iterator = get_row_iterator(TEST_TABLE_SPEC[6], target_uri)
 
         row = next(iterator)
-        self.assertTrue(len(row) > 1, "Not able to read a row.")
+        assert len(row) > 1, "Not able to read a row."
 
     def test_csv_with_double_quotes_in_values(self):
         table_spec = TEST_TABLE_SPEC[10]
@@ -315,10 +300,10 @@ class TestFormatHandler(unittest.TestCase):
 
         for row in iterator:
             print(row)
-            self.assertTrue(row["column_two"] == "2", "Expected column_two value to be '2'")
+            assert row["column_two"] == "2", "Expected column_two value to be '2'"
 
 
-class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
+class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames:
     def test_ignore_undefined_field_names_true(self):
         table_spec = TEST_TABLE_SPEC[2]
         modified_since = dateutil.parser.parse(table_spec.start_date)
@@ -328,7 +313,7 @@ class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
         samples = file_utils.sample_files(table_spec, target_files, ignore_undefined_field_names, sample_rate=1)
 
         # Should find only the 3 named columns in the sheet
-        self.assertTrue(len(samples[1]) == 3, "Found more than expected 3 columns")
+        assert len(samples[1]) == 3, "Found more than expected 3 columns"
 
     def test_ignore_undefined_field_names_false(self):
         table_spec = TEST_TABLE_SPEC[2]
@@ -340,7 +325,7 @@ class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
 
         # This assert is 4 as sample_files finds 3 names columns, 3 unnamed, but merges all
         # of the unnamed columns into one "entry" in the catalog as an empty string
-        self.assertTrue(len(samples[1]) == 4, "Found more than expected 4 columns")
+        assert len(samples[1]) == 4, "Found more than expected 4 columns"
 
 
 class TestFormatHandlerExcelXlsxSkipInitial:
@@ -406,7 +391,7 @@ class TestFormatHandlerExcelXlsxSkipInitial:
         assert next(iterator) == exp
 
 
-class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
+class TestFormatHandlerSkipEmptyRows:
     """pytests to validate Skip Empty Rows setting."""
 
     def test_skip_empty_rows_csv(self):
@@ -423,9 +408,9 @@ class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
         for row in iterator:
             rows_list.append(row)
             print(row)
-            self.assertTrue(any(value != None or value != "" for value in row.values()))
+            assert any(value != None or value != "" for value in row.values())
 
-        self.assertTrue(len(rows_list) == 8)
+        assert len(rows_list) == 8
 
     def test_not_skip_empty_rows_csv(self):
         table_spec = TEST_TABLE_SPEC[9]
@@ -439,4 +424,4 @@ class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
 
         rows_list = list(iterator)
 
-        self.assertTrue(len(rows_list) == 9)
+        assert len(rows_list) == 9

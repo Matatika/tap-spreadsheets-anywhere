@@ -1,4 +1,3 @@
-import unittest
 from unittest.mock import patch
 
 from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
@@ -6,7 +5,7 @@ from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
 TOKEN = {"access_token": "new-access-token"}
 
 
-class TestRefreshMicrosoftToken(unittest.TestCase):
+class TestRefreshMicrosoftToken:
     def test_refresh_with_app_registration(self):
         credentials = {
             "client_id": "test-client-id",

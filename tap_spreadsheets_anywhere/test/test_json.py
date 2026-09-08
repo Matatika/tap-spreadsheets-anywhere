@@ -1,4 +1,3 @@
-import unittest
 from io import StringIO
 
 from tap_spreadsheets_anywhere import json_handler
@@ -43,7 +42,7 @@ TEST_TABLE_SPEC = [
 ]
 
 
-class TestFormatHandler(unittest.TestCase):
+class TestFormatHandler:
     def test_json_flat_array(self):
         reader = StringIO('[{"k":"v"},{"k":"v"},{"k":"v"}]')
         json_handler.get_row_iterator(TEST_TABLE_SPEC[0], reader)
@@ -56,10 +55,10 @@ class TestFormatHandler(unittest.TestCase):
         reader = StringIO('{"someKey": [{"k":"v"},{"k":"v"},{"k":"v"}]}')
         iterator = json_handler.get_row_iterator(TEST_TABLE_SPEC[2], reader)
         for row in iterator:
-            self.assertEqual(row["k"], "v")
+            assert row["k"] == "v"
 
     def test_json_nested_array_with_jsonpath(self):
         reader = StringIO('{"someKey": {"nestedKey": [{"k":"v"},{"k":"v"},{"k":"v"}]}}')
         iterator = json_handler.get_row_iterator(TEST_TABLE_SPEC[3], reader)
         for row in iterator:
-            self.assertEqual(row["k"], "v")
+            assert row["k"] == "v"
