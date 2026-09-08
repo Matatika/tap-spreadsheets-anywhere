@@ -1,11 +1,73 @@
 """Provides an object model for a our config file"""
 
+from __future__ import annotations
+
+import dataclasses
 import json
 import logging
 
 from voluptuous import Any, Extra, Optional, Required, Schema
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class TableSpec:
+    """A single, validated entry from the tap config's `tables` array.
+
+    Supports the same `table_spec['key']` / `table_spec.get('key', default)` / `'key' in
+    table_spec` access patterns as the raw dict it replaces (see `__getitem__`/`get`/
+    `__contains__` below), so existing call sites across the tap - and test fixtures that
+    still construct plain dicts directly - keep working unchanged. New code can additionally
+    use typed attribute access (e.g. `table_spec.path`) for IDE/type-checker support.
+    """
+
+    path: str
+    name: str
+    pattern: str
+    start_date: str
+    key_properties: list[str]
+    format: str
+    encoding: str = "utf-8"
+    invalid_format_action: str = "fail"
+    universal_newlines: bool = True
+    skip_initial: int = 0
+    selected: bool = True
+    field_names: list[str] | None = None
+    search_prefix: str | None = None
+    worksheet_name: str | None = None
+    delimiter: str | None = None
+    quotechar: str = '"'
+    json_path: str | None = None
+    sample_rate: int = 5
+    max_sampling_read: int = 1000
+    max_records_per_run: int = -1
+    max_sampled_files: int = 50
+    prefer_number_vs_integer: bool = False
+    prefer_schema_as_string: bool = False
+    schema_overrides: dict = dataclasses.field(default_factory=dict)
+    ignore_undefined_field_names: bool = False
+    ignore_state: bool = False
+    skip_empty_rows: bool = False
+    state_based_discovery: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict) -> TableSpec:
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known_fields})
+
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key) from None
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def __contains__(self, key):
+        return getattr(self, key, None) is not None
+
 
 CONFIG_CONTRACT = Schema(
     {
@@ -103,6 +165,7 @@ class Config:
     @classmethod
     def validate(cls, config_json):
         CONFIG_CONTRACT(config_json)
+        config_json["tables"] = [TableSpec.from_dict(table) for table in config_json["tables"]]
         return config_json
 
     @classmethod
