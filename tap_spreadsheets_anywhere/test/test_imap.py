@@ -1,4 +1,3 @@
-import unittest
 from unittest.mock import patch
 
 from tap_spreadsheets_anywhere.format_handler import get_imap_fs
@@ -7,9 +6,8 @@ HOST = "outlook.office365.com"
 TOKEN = {"access_token": "new-access-token", "refresh_token": "new-refresh-token"}
 
 
-class TestGetImapFs(unittest.TestCase):
-
-    def setUp(self):
+class TestGetImapFs:
+    def setup_method(self):
         get_imap_fs.cache_clear()
 
     def test_refresh_token_flow(self):

@@ -1,5 +1,6 @@
-import unittest
 from unittest.mock import patch
+
+import pytest
 
 from tap_spreadsheets_anywhere.format_handler import get_sharepoint_fs
 
@@ -7,9 +8,8 @@ TOKEN = {"access_token": "new-access-token"}
 URI = "sharepoint://test-site/Documents/"
 
 
-class TestGetSharepointFs(unittest.TestCase):
-
-    def setUp(self):
+class TestGetSharepointFs:
+    def setup_method(self):
         get_sharepoint_fs.cache_clear()
 
     def _get_fs(self, credentials):
@@ -25,11 +25,13 @@ class TestGetSharepointFs(unittest.TestCase):
         return fs
 
     def test_client_credentials_flow(self):
-        fs = self._get_fs({
-            "client_id": "test-client-id",
-            "client_secret": "test-client-secret",
-            "tenant_id": "test-tenant-id",
-        })
+        fs = self._get_fs(
+            {
+                "client_id": "test-client-id",
+                "client_secret": "test-client-secret",
+                "tenant_id": "test-tenant-id",
+            }
+        )
 
         assert fs.call_args.kwargs == {
             "client_id": "test-client-id",
@@ -39,18 +41,20 @@ class TestGetSharepointFs(unittest.TestCase):
         }
 
     def test_client_credentials_flow_without_tenant_id(self):
-        with self.assertRaises(ValueError):
-            self._get_fs({
-                "client_id": "test-client-id",
-                "client_secret": "test-client-secret",
-            })
+        with pytest.raises(ValueError):
+            self._get_fs(
+                {
+                    "client_id": "test-client-id",
+                    "client_secret": "test-client-secret",
+                }
+            )
 
     def test_no_credentials(self):
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             self._get_fs({"client_id": "test-client-id"})
 
         # the error lists every supported set of settings
-        message = str(ctx.exception)
+        message = str(ctx.value)
         assert "`access_token`" in message
         assert "`client_id`, `client_secret`, `tenant_id`" in message
         assert "`refresh_token`, `client_id`, `client_secret`" in message
@@ -61,12 +65,14 @@ class TestGetSharepointFs(unittest.TestCase):
             "tap_spreadsheets_anywhere.format_handler.refresh_microsoft_token",
             return_value=TOKEN,
         ) as refresh:
-            fs = self._get_fs({
-                "client_id": "test-client-id",
-                "client_secret": "test-client-secret",
-                "tenant_id": "test-tenant-id",
-                "refresh_token": "test-refresh-token",
-            })
+            fs = self._get_fs(
+                {
+                    "client_id": "test-client-id",
+                    "client_secret": "test-client-secret",
+                    "tenant_id": "test-tenant-id",
+                    "refresh_token": "test-refresh-token",
+                }
+            )
 
         refresh.assert_called_once()
         assert fs.call_args.kwargs == {

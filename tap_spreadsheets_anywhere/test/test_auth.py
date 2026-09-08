@@ -1,4 +1,3 @@
-import unittest
 from unittest.mock import patch
 
 from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
@@ -6,8 +5,7 @@ from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
 TOKEN = {"access_token": "new-access-token"}
 
 
-class TestRefreshMicrosoftToken(unittest.TestCase):
-
+class TestRefreshMicrosoftToken:
     def test_refresh_with_app_registration(self):
         credentials = {
             "client_id": "test-client-id",
@@ -20,10 +18,8 @@ class TestRefreshMicrosoftToken(unittest.TestCase):
             post.return_value.json.return_value = TOKEN
             token = refresh_microsoft_token(credentials)
 
-        url, = post.call_args.args
-        assert url == (
-            "https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0/token"
-        )
+        (url,) = post.call_args.args
+        assert url == ("https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0/token")
         assert post.call_args.kwargs["data"] == {
             "grant_type": "refresh_token",
             "refresh_token": "test-refresh-token",
@@ -43,7 +39,7 @@ class TestRefreshMicrosoftToken(unittest.TestCase):
             post.return_value.json.return_value = TOKEN
             refresh_microsoft_token(credentials)
 
-        url, = post.call_args.args
+        (url,) = post.call_args.args
         assert url == "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 
     def test_refresh_with_proxy(self):
@@ -61,7 +57,7 @@ class TestRefreshMicrosoftToken(unittest.TestCase):
             post.return_value.json.return_value = TOKEN
             token = refresh_microsoft_token(credentials)
 
-        url, = post.call_args.args
+        (url,) = post.call_args.args
         assert url == "https://test-proxy/token"
         assert post.call_args.kwargs["headers"] == {
             "Authorization": "Bearer test-proxy-token",
