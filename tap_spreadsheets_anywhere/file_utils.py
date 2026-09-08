@@ -157,40 +157,40 @@ def parse_path(path):
     return ("local", path_parts[0]) if len(path_parts) <= 1 else (path_parts[0], path_parts[1])
 
 
-def get_matching_objects(table_spec, modified_since=None):
-    protocol, bucket = parse_path(table_spec["path"])
+def get_matching_objects(table_spec: TableSpec, modified_since=None):
+    protocol, bucket = parse_path(table_spec.path)
 
     # TODO Breakout the transport schemes here similar to the registry/loading pattern used by smart_open
     if protocol == "s3":
-        target_objects = list_files_in_s3_bucket(bucket, table_spec.get("search_prefix"))
+        target_objects = list_files_in_s3_bucket(bucket, table_spec.search_prefix)
     elif protocol == "file":
-        target_objects = list_files_in_local_bucket(bucket, table_spec.get("search_prefix"))
+        target_objects = list_files_in_local_bucket(bucket, table_spec.search_prefix)
     elif protocol in ["sftp"]:
-        target_objects = list_files_in_SSH_bucket(table_spec["path"], table_spec.get("search_prefix"))
+        target_objects = list_files_in_SSH_bucket(table_spec.path, table_spec.search_prefix)
     elif protocol in ["ftp"]:
-        target_objects = list_files_in_ftp_server(table_spec["path"], table_spec.get("search_prefix"))
+        target_objects = list_files_in_ftp_server(table_spec.path, table_spec.search_prefix)
     elif protocol in ["gs"]:
-        target_objects = list_files_in_gs_bucket(bucket, table_spec.get("search_prefix"))
+        target_objects = list_files_in_gs_bucket(bucket, table_spec.search_prefix)
     elif protocol in ["http", "https"]:
         target_objects = convert_URL_to_file_list(table_spec)
     elif protocol in ["azure"]:
         target_objects = list_files_in_azure_bucket(
             bucket,
-            table_spec.get("search_prefix"),
+            table_spec.search_prefix,
             modified_since,
         )
     elif protocol in ["imap"]:
         target_objects = list_files_in_imap_mailbox(
-            table_spec["path"],
-            table_spec.get("search_prefix"),
+            table_spec.path,
+            table_spec.search_prefix,
             modified_since,
         )
     elif protocol in ["sharepoint"]:
-        target_objects = list_files_in_sharepoint(table_spec["path"], table_spec.get("search_prefix"))
+        target_objects = list_files_in_sharepoint(table_spec.path, table_spec.search_prefix)
     else:
         raise ValueError("Protocol {} not yet supported. Pull Requests are welcome!")
 
-    pattern = table_spec["pattern"]
+    pattern = table_spec.pattern
     matcher = re.compile(pattern)
     if modified_since:
         LOGGER.info(
@@ -267,8 +267,8 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
     return entries
 
 
-def convert_URL_to_file_list(table_spec):
-    url = table_spec["path"] + "/" + table_spec["pattern"]
+def convert_URL_to_file_list(table_spec: TableSpec):
+    url = table_spec.path + "/" + table_spec.pattern
     LOGGER.info("Assembled %s as the URL to a source file.", url)
     r = requests.get(url, allow_redirects=True)
     if r:
@@ -281,7 +281,7 @@ def convert_URL_to_file_list(table_spec):
             LOGGER.warning("URL did not return a last-modified header so using current date and time.")
             last_modified = datetime.now(tz=timezone.utc)
 
-        filename = table_spec["pattern"]
+        filename = table_spec.pattern
         # TODO: logic below is disabled because we can't currently support reading filenames from Content-Disposition (Excel limitations)
         # if 'content-disposition' in r.headers:
         #     cd = r.headers['content-disposition']
@@ -474,9 +474,14 @@ def list_files_in_sharepoint(
 def config_by_crawl(crawl_config):
     config = {"tables": []}
     for source in crawl_config:
+        # A crawl source only carries a subset of TableSpec's fields (no name/key_properties/
+        # format - those get invented per generated table below), but wrapping it lets
+        # get_matching_objects() rely solely on TableSpec attribute access, same as every
+        # other caller.
+        source_spec = TableSpec.from_dict(source)
         entries = {}
-        modified_since = dateutil.parser.parse(source.get("start_date", "1970-01-01T00:00:00Z"))
-        target_files = get_matching_objects(source, modified_since=modified_since)
+        modified_since = dateutil.parser.parse(source_spec.start_date or "1970-01-01T00:00:00Z")
+        target_files = get_matching_objects(source_spec, modified_since=modified_since)
         for file in target_files:
             if not file["key"].endswith("/"):
                 dirs = file["key"].split("/")
@@ -494,21 +499,23 @@ def config_by_crawl(crawl_config):
                 abs_pattern = directory + "/" + rel_pattern + "$"
                 if table not in entries:
                     entries[table] = {
-                        "path": source["path"],
+                        "path": source_spec.path,
                         "name": table,
                         "search_prefix": directory,
                         "pattern": abs_pattern,
                         "key_properties": [],
                         "format": "detect",
-                        "encoding": source.get("encoding", "utf-8"),
+                        "encoding": source_spec.encoding,
                         "invalid_format_action": "ignore",
                         "delimiter": "detect",
-                        "max_records_per_run": source.get("max_records_per_run", -1),
+                        "max_records_per_run": source_spec.max_records_per_run,
+                        # Reads the raw dict, not source_spec: TableSpec defaults max_sampled_files
+                        # to 50 (matching discover()'s default), but crawl mode's own default is 5.
                         "max_sampled_files": source.get("max_sampled_files", 5),
-                        "max_sampling_read": source.get("max_sampling_read", 1000),
-                        "universal_newlines": source.get("universal_newlines", True),
-                        "prefer_number_vs_integer": source.get("prefer_number_vs_integer", False),
-                        "prefer_schema_as_string": source.get("prefer_schema_as_string", False),
+                        "max_sampling_read": source_spec.max_sampling_read,
+                        "universal_newlines": source_spec.universal_newlines,
+                        "prefer_number_vs_integer": source_spec.prefer_number_vs_integer,
+                        "prefer_schema_as_string": source_spec.prefer_schema_as_string,
                         "start_date": modified_since.isoformat(),
                     }
                 elif abs_pattern != entries[table]["pattern"]:
@@ -516,21 +523,23 @@ def config_by_crawl(crawl_config):
                     table_with_pattern = re.sub(r"\W+", "", table + "_" + rel_pattern)
                     if table_with_pattern not in entries:
                         entries[table_with_pattern] = {
-                            "path": source["path"],
+                            "path": source_spec.path,
                             "name": table_with_pattern,
                             "search_prefix": directory,
                             "pattern": abs_pattern,
                             "key_properties": [],
                             "format": "detect",
-                            "encoding": source.get("encoding", "utf-8"),
+                            "encoding": source_spec.encoding,
                             "invalid_format_action": "ignore",
                             "delimiter": "detect",
-                            "max_records_per_run": source.get("max_records_per_run", -1),
+                            "max_records_per_run": source_spec.max_records_per_run,
+                            # Reads the raw dict, not source_spec: TableSpec defaults max_sampled_files
+                            # to 50 (matching discover()'s default), but crawl mode's own default is 5.
                             "max_sampled_files": source.get("max_sampled_files", 5),
-                            "max_sampling_read": source.get("max_sampling_read", 1000),
-                            "universal_newlines": source.get("universal_newlines", True),
-                            "prefer_number_vs_integer": source.get("prefer_number_vs_integer", False),
-                            "prefer_schema_as_string": source.get("prefer_schema_as_string", False),
+                            "max_sampling_read": source_spec.max_sampling_read,
+                            "universal_newlines": source_spec.universal_newlines,
+                            "prefer_number_vs_integer": source_spec.prefer_number_vs_integer,
+                            "prefer_schema_as_string": source_spec.prefer_schema_as_string,
                             "start_date": modified_since.isoformat(),
                         }
 
