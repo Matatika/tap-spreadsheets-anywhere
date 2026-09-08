@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 
 import pyarrow as pa
 import pytest
@@ -77,7 +78,7 @@ class TestSchemaToArrowSchema:
         assert by_name["a_number"] == pa.float64()
         assert by_name["a_bool"] == pa.bool_()
         assert by_name["a_string"] == pa.string()
-        assert by_name["a_date"] == pa.string()
+        assert by_name["a_date"] == pa.timestamp("us")
         assert by_name["untyped"] == pa.string()
 
     def test_handles_bare_string_type(self):
@@ -104,6 +105,27 @@ class TestRowsToArrowTable:
         table = rows_to_arrow_table(rows, arrow_schema)
 
         assert json.loads(table.column("payload")[0].as_py()) == {"k": "v"}
+
+    def test_parses_date_time_strings_into_naive_utc_timestamps(self):
+        # Values arrive as timezone-aware ISO-8601 strings (see conversion.convert) --
+        # a BATCH target mapping `date-time` to a native timestamp column (e.g.
+        # target-mssql's DATETIMEOFFSET) needs an actual Arrow timestamp column, not a
+        # string one (see arrow_batch._pick_arrow_type).
+        arrow_schema = pa.schema([pa.field("created_at", pa.timestamp("us"))])
+        rows = [
+            {"created_at": "2024-01-02T03:04:05.678000+00:00"},
+            {"created_at": "2024-01-02T04:00:00-05:00"},
+            {"created_at": None},
+        ]
+
+        table = rows_to_arrow_table(rows, arrow_schema)
+
+        assert table.schema == arrow_schema
+        assert table.column("created_at").to_pylist() == [
+            datetime(2024, 1, 2, 3, 4, 5, 678000),  # ruff: ignore[DTZ001]
+            datetime(2024, 1, 2, 9, 0, 0),  # ruff: ignore[DTZ001]
+            None,
+        ]
 
 
 class TestWriteArrowIpcFile:

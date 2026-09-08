@@ -77,10 +77,16 @@ class BatchConfig:
 def _pick_arrow_type(property_schema: dict) -> pa.DataType:
     """Map a single Singer JSON-schema property definition to an Arrow type."""
     if property_schema.get("format") == "date-time":
-        # Values are already ISO-8601 strings by the time they reach us (see
-        # conversion.convert_row), so represent them as strings here too -
-        # keeps BATCH output consistent with RECORD output for the same data.
-        return pa.string()
+        # Values are timezone-aware ISO-8601 strings by the time they reach us
+        # (conversion.convert always attaches UTC if a parsed value came back naive) -
+        # encode as a proper (naive, UTC-implied) Arrow timestamp rather than a plain
+        # string. A BATCH target that maps a `date-time` property to a native SQL
+        # timestamp column (e.g. target-mssql's DATETIMEOFFSET) expects the Arrow
+        # source column to already be timestamp-typed and naive -- same shape an
+        # ADBC-backed tap's own DATETIME/TIMESTAMP columns produce -- and otherwise
+        # rejects a string-typed Arrow column against that destination outright. See
+        # rows_to_arrow_table for the string->timestamp parse this implies.
+        return pa.timestamp("us")
 
     declared_types = property_schema.get("type", ["null", "string"])
     if isinstance(declared_types, str):
@@ -106,7 +112,12 @@ def rows_to_arrow_table(rows: list[dict], arrow_schema: pa.Schema) -> pa.Table:
     """Build a pyarrow Table from a list of row dicts, matching `arrow_schema`.
 
     Values holding nested structures (dict/list, from a Singer 'object' typed
-    property) are JSON-encoded, since they're mapped to Arrow strings above.
+    property) are JSON-encoded, since they're mapped to Arrow strings above. A
+    `date-time` field (mapped to a naive Arrow timestamp by `_pick_arrow_type`)
+    arrives as a timezone-aware ISO-8601 string, so it's parsed via Arrow's own
+    string->timestamp cast (through a UTC-aware intermediate, since the strings
+    always carry an explicit offset) rather than `pa.array(..., type=field.type)`,
+    which can't parse strings directly into a timestamp type.
     """
     arrays = []
     for field in arrow_schema:
@@ -116,7 +127,12 @@ def rows_to_arrow_table(rows: list[dict], arrow_schema: pa.Schema) -> pa.Table:
             if isinstance(value, (dict, list)):
                 value = json.dumps(value)
             values.append(value)
-        arrays.append(pa.array(values, type=field.type))
+
+        if pa.types.is_timestamp(field.type):
+            aware = pa.array(values, type=pa.string()).cast(pa.timestamp(field.type.unit, tz="UTC"))
+            arrays.append(aware.cast(field.type))
+        else:
+            arrays.append(pa.array(values, type=field.type))
 
     return pa.Table.from_arrays(arrays, schema=arrow_schema)
 
