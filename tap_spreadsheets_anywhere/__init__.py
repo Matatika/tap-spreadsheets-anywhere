@@ -8,7 +8,7 @@ from singer.catalog import Catalog, CatalogEntry
 from singer.schema import Schema
 
 from tap_spreadsheets_anywhere import arrow_batch, conversion, file_utils, format_handler
-from tap_spreadsheets_anywhere.configuration import Config
+from tap_spreadsheets_anywhere.configuration import Config, TableSpec
 from tap_spreadsheets_anywhere.record_sink import SingerRecordSink
 
 LOGGER = logging.getLogger(__name__)
@@ -35,24 +35,24 @@ def merge_dicts(first, second):
     return to_return
 
 
-def override_schema_with_config(inferred_schema, table_spec):
+def override_schema_with_config(inferred_schema, table_spec: TableSpec):
     override_schema = {
-        "properties": table_spec.get("schema_overrides", {}),
-        "selected": table_spec.get("selected", True),
+        "properties": table_spec.schema_overrides,
+        "selected": table_spec.selected,
     }
     # Note that we directly support setting selected through config so that this tap is useful outside Meltano
     return merge_dicts(inferred_schema, override_schema)
 
 
-def generate_schema(table_spec, samples):
+def generate_schema(table_spec: TableSpec, samples):
     metadata_schema = {
         "_smart_source_bucket": {"type": "string"},
         "_smart_source_file": {"type": "string"},
         "_smart_source_lineno": {"type": "integer"},
         "_smart_source_last_modified": {"type": "string", "format": "date-time"},
     }
-    prefer_number_vs_integer = table_spec.get("prefer_number_vs_integer", False)
-    prefer_schema_as_string = table_spec.get("prefer_schema_as_string", False)
+    prefer_number_vs_integer = table_spec.prefer_number_vs_integer
+    prefer_schema_as_string = table_spec.prefer_schema_as_string
     data_schema = conversion.generate_schema(
         samples,
         prefer_number_vs_integer=prefer_number_vs_integer,
@@ -72,32 +72,28 @@ def discover(config, state=None):
     for table_spec in config["tables"]:
         try:
             state_modified_since = (
-                (state or {}).get(table_spec["name"], {}).get("modified_since")
-                if table_spec.get("state_based_discovery")
+                (state or {}).get(table_spec.name, {}).get("modified_since")
+                if table_spec.state_based_discovery
                 else None
             )
-            sample_rate = table_spec.get("sample_rate", 5)
-            max_sampling_read = table_spec.get("max_sampling_read", 1000)
-            max_sampled_files = table_spec.get("max_sampled_files", 50)
-            modified_since = dateutil.parser.parse(state_modified_since or table_spec["start_date"])
+            modified_since = dateutil.parser.parse(state_modified_since or table_spec.start_date)
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
             samples = file_utils.sample_files(
                 table_spec,
                 target_files,
-                table_spec.get("ignore_undefined_field_names", False),
-                sample_rate=sample_rate,
-                max_records=max_sampling_read,
-                max_files=max_sampled_files,
+                table_spec.ignore_undefined_field_names,
+                sample_rate=table_spec.sample_rate,
+                max_records=table_spec.max_sampling_read,
+                max_files=table_spec.max_sampled_files,
             )
             schema = generate_schema(table_spec, samples)
             stream_metadata = []
-            key_properties = table_spec.get("key_properties", [])
             streams.append(
                 CatalogEntry(
-                    tap_stream_id=table_spec["name"],
-                    stream=table_spec["name"],
+                    tap_stream_id=table_spec.name,
+                    stream=table_spec.name,
                     schema=schema,
-                    key_properties=key_properties,
+                    key_properties=table_spec.key_properties,
                     metadata=stream_metadata,
                     replication_key=None,
                     is_view=None,
@@ -111,7 +107,7 @@ def discover(config, state=None):
         except Exception as err:
             LOGGER.error(
                 "Unable to write Catalog entry for '%s' - it will be skipped due to error %s",
-                table_spec["name"],
+                table_spec.name,
                 err,
             )
             raise
@@ -130,7 +126,7 @@ def sync(config, state, catalog):
         LOGGER.info("Syncing stream: %s", stream.tap_stream_id)
         catalog_schema = stream.schema.to_dict()
         state_modified_since = state.get(stream.tap_stream_id, {}).get("modified_since")
-        table_specs = [t for t in config["tables"] if t["name"] == stream.tap_stream_id]
+        table_specs = [t for t in config["tables"] if t.name == stream.tap_stream_id]
 
         if not table_specs:
             LOGGER.warning("Skipping processing for stream [%s] without a config block.", stream.tap_stream_id)
@@ -145,9 +141,7 @@ def sync(config, state, catalog):
                 key_properties=stream.key_properties,
             )
             modified_since = dateutil.parser.parse(
-                table_spec["start_date"]
-                if table_spec.get("ignore_state", False)
-                else (state_modified_since or table_spec["start_date"])
+                table_spec.start_date if table_spec.ignore_state else (state_modified_since or table_spec.start_date)
             )
 
             sink = (
@@ -157,7 +151,7 @@ def sync(config, state, catalog):
             )
 
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
-            max_records_per_run = table_spec.get("max_records_per_run", -1)
+            max_records_per_run = table_spec.max_records_per_run
             records_streamed = 0
             for t_file in target_files:
                 last_modified_iso = t_file["last_modified"].isoformat()

@@ -21,13 +21,14 @@ from azure.storage.blob import BlobServiceClient
 
 import tap_spreadsheets_anywhere.format_handler
 from tap_spreadsheets_anywhere import conversion
+from tap_spreadsheets_anywhere.configuration import TableSpec
 from tap_spreadsheets_anywhere.record_sink import SingerRecordSink
 
 LOGGER = logging.getLogger(__name__)
 
 
-def resolve_target_uri(table_spec, target_filename):
-    path: str = table_spec["path"]
+def resolve_target_uri(table_spec: TableSpec, target_filename):
+    path: str = table_spec.path
     parsed = urlparse(path)
 
     if parsed.scheme == "imap":
@@ -52,16 +53,16 @@ def _hide_credentials(path):
     return path
 
 
-def write_file(target_filename, last_modified_iso, table_spec, schema, max_records=-1, sink=None):
+def write_file(target_filename, last_modified_iso, table_spec: TableSpec, schema, max_records=-1, sink=None):
     LOGGER.info('Syncing file "%s".', target_filename)
     target_uri = resolve_target_uri(table_spec, target_filename)
-    sink = sink or SingerRecordSink(table_spec["name"])
+    sink = sink or SingerRecordSink(table_spec.name)
     records_synced = 0
     try:
         iterator = tap_spreadsheets_anywhere.format_handler.get_row_iterator(table_spec, target_uri)
         for row in iterator:
             metadata = {
-                "_smart_source_bucket": _hide_credentials(table_spec["path"]),
+                "_smart_source_bucket": _hide_credentials(table_spec.path),
                 "_smart_source_file": target_filename,
                 # index zero, +1 for header row
                 "_smart_source_lineno": records_synced + 2,
@@ -85,7 +86,7 @@ def write_file(target_filename, last_modified_iso, table_spec, schema, max_recor
                 break
 
     except tap_spreadsheets_anywhere.format_handler.InvalidFormatError:
-        if table_spec.get("invalid_format_action", "fail").lower() == "ignore":
+        if table_spec.invalid_format_action.lower() == "ignore":
             LOGGER.exception("Ignoring unparseable file: %s", target_filename)
         else:
             raise
@@ -93,7 +94,7 @@ def write_file(target_filename, last_modified_iso, table_spec, schema, max_recor
     return records_synced
 
 
-def sample_file(table_spec, target_filename, ignore_undefined_field_names, sample_rate, max_records):
+def sample_file(table_spec: TableSpec, target_filename, ignore_undefined_field_names, sample_rate, max_records):
     LOGGER.info("Sampling %s (%s records, every %sth record).", target_filename, max_records, sample_rate)
 
     target_uri = resolve_target_uri(table_spec, target_filename)
@@ -104,7 +105,7 @@ def sample_file(table_spec, target_filename, ignore_undefined_field_names, sampl
 
         for row in iterator:
             if (current_row % sample_rate) == 0:
-                if table_spec.get("skip_empty_rows", False) and all(value == None for value in row.values()):
+                if table_spec.skip_empty_rows and all(value == None for value in row.values()):
                     continue
                 else:
                     samples.append(row)
@@ -113,7 +114,7 @@ def sample_file(table_spec, target_filename, ignore_undefined_field_names, sampl
             if len(samples) >= max_records:
                 break
     except tap_spreadsheets_anywhere.format_handler.InvalidFormatError:
-        if table_spec.get("invalid_format_action", "fail").lower() != "ignore":
+        if table_spec.invalid_format_action.lower() != "ignore":
             raise
         else:
             LOGGER.exception("Unable to parse %s", target_filename)

@@ -1,17 +1,20 @@
 import logging
 import re
+from collections.abc import Generator
 from io import BytesIO
 
 import openpyxl
 import xlrd
 
+from tap_spreadsheets_anywhere.configuration import TableSpec
+
 LOGGER = logging.getLogger(__name__)
 
 
-def generator_wrapper(reader, table_spec: dict | None = None) -> dict:
+def generator_wrapper(reader, table_spec: TableSpec | None = None) -> Generator[dict, None, None]:
     if table_spec is None:
-        table_spec = {}
-    skip_initial = table_spec.get("skip_initial", 0)
+        table_spec = TableSpec()
+    skip_initial = table_spec.skip_initial
     _skip_count = 0
     header_row = None
     for row in reader:
@@ -20,7 +23,7 @@ def generator_wrapper(reader, table_spec: dict | None = None) -> dict:
             _skip_count += 1
             continue
 
-        if table_spec.get("skip_empty_rows", False) and all(value == None or value == "" for value in row.values()):
+        if table_spec.skip_empty_rows and all(value == None or value == "" for value in row.values()):
             continue
 
         to_return = {}
@@ -50,15 +53,15 @@ def generator_wrapper(reader, table_spec: dict | None = None) -> dict:
         yield to_return
 
 
-def get_legacy_row_iterator(table_spec, file_handle):
+def get_legacy_row_iterator(table_spec: TableSpec, file_handle):
     workbook = xlrd.open_workbook(on_demand=True, file_contents=file_handle.read())
-    if "worksheet_name" in table_spec:
+    if table_spec.worksheet_name is not None:
         try:
-            sheet = workbook.sheet_by_name(table_spec["worksheet_name"])
+            sheet = workbook.sheet_by_name(table_spec.worksheet_name)
         except Exception:
             LOGGER.error(
                 "Unable to open specified sheet '%s' - did you check the workbook's sheet name for spaces?",
-                table_spec["worksheet_name"],
+                table_spec.worksheet_name,
             )
             raise
     else:
@@ -83,16 +86,16 @@ def get_legacy_row_iterator(table_spec, file_handle):
     return generator_wrapper(sheet.get_rows(), table_spec)
 
 
-def get_row_iterator(table_spec, file_handle):
+def get_row_iterator(table_spec: TableSpec, file_handle):
     workbook = openpyxl.load_workbook(BytesIO(file_handle.read()), read_only=True, data_only=True)
 
-    if "worksheet_name" in table_spec:
+    if table_spec.worksheet_name is not None:
         try:
-            active_sheet = workbook[table_spec["worksheet_name"]]
+            active_sheet = workbook[table_spec.worksheet_name]
         except Exception:
             LOGGER.error(
                 "Unable to open specified sheet '%s' - did you check the workbook's sheet name for spaces?",
-                table_spec["worksheet_name"],
+                table_spec.worksheet_name,
             )
             raise
     else:

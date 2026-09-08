@@ -19,6 +19,7 @@ import tap_spreadsheets_anywhere.excel_handler
 import tap_spreadsheets_anywhere.json_handler
 import tap_spreadsheets_anywhere.jsonl_handler
 from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
+from tap_spreadsheets_anywhere.configuration import TableSpec
 
 _config: dict = {}
 
@@ -328,12 +329,12 @@ def mp_readline(self, size=None, keepends=False):
     return line
 
 
-def get_row_iterator(table_spec, uri):
-    universal_newlines = table_spec.get("universal_newlines", True)
-    encoding = table_spec.get("encoding", "utf-8")
-    skip_initial = table_spec.get("skip_initial", 0)
+def get_row_iterator(table_spec: TableSpec, uri):
+    universal_newlines = table_spec.universal_newlines
+    encoding = table_spec.encoding
+    skip_initial = table_spec.skip_initial
 
-    if "format" not in table_spec or table_spec["format"] == "detect":
+    if table_spec.format == "detect":
         lowered_uri = uri.lower()
         if lowered_uri.endswith((".xlsx", ".xls")):
             format = "excel"

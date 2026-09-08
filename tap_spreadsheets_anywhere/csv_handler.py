@@ -2,13 +2,15 @@ import csv
 import logging
 import re
 
+from tap_spreadsheets_anywhere.configuration import TableSpec
+
 LOGGER = logging.getLogger(__name__)
 
 
-def generator_wrapper(reader, table_spec):
+def generator_wrapper(reader: csv.DictReader, table_spec: TableSpec):
     for row in reader:
         to_return = {}
-        if table_spec.get("skip_empty_rows", False) and all(value == None or value == "" for value in row.values()):
+        if table_spec.skip_empty_rows and all(value == None or value == "" for value in row.values()):
             continue
         for key, value in row.items():
             if key is None:
@@ -30,13 +32,11 @@ def generator_wrapper(reader, table_spec):
         yield to_return
 
 
-def get_row_iterator(table_spec, reader):
-    field_names = None
-    if "field_names" in table_spec:
-        field_names = table_spec["field_names"]
+def get_row_iterator(table_spec: TableSpec, reader):
+    field_names = table_spec.field_names
 
     dialect = "excel"
-    if "delimiter" not in table_spec or table_spec["delimiter"] == "detect":
+    if table_spec.delimiter is None or table_spec.delimiter == "detect":
         try:
             dialect = csv.Sniffer().sniff(reader.readline(), delimiters=[",", "\t", ";", " ", ":", "|", " "])
             dialect.doublequote = True
@@ -45,8 +45,8 @@ def get_row_iterator(table_spec, reader):
         except Exception as err:
             raise ValueError("Unable to sniff a delimiter") from err
     else:
-        custom_delimiter = table_spec.get("delimiter", ",")
-        custom_quotechar = table_spec.get("quotechar", '"')
+        custom_delimiter = table_spec.delimiter
+        custom_quotechar = table_spec.quotechar
         if custom_delimiter != "," or custom_quotechar != '"':
 
             class custom_dialect(csv.excel):

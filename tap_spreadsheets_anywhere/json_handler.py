@@ -5,12 +5,14 @@ from json import JSONDecodeError
 
 from jsonpath_ng.ext import parse
 
+from tap_spreadsheets_anywhere.configuration import TableSpec
+
 LOGGER = logging.getLogger(__name__)
 
 
-def generator_wrapper(root_iterator, table_spec):
+def generator_wrapper(root_iterator, table_spec: TableSpec):
     for obj in root_iterator:
-        if table_spec.get("skip_empty_rows", False) and all(value == None or value == "" for value in obj.values()):
+        if table_spec.skip_empty_rows and all(value == None or value == "" for value in obj.values()):
             continue
         to_return = {}
         if isinstance(obj, list):
@@ -37,10 +39,10 @@ def generator_wrapper(root_iterator, table_spec):
         yield to_return
 
 
-def get_row_iterator(table_spec, reader):
+def get_row_iterator(table_spec: TableSpec, reader):
     try:
         json_array = json.load(reader)
-        json_path = table_spec.get("json_path", None)
+        json_path = table_spec.json_path
         if json_path is not None:
             json_array = extract_jsonpath(json_path, json_array)
             # LOGGER.info(type(json_array))

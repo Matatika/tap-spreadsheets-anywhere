@@ -3,13 +3,15 @@ import logging
 import re
 from json import JSONDecodeError
 
+from tap_spreadsheets_anywhere.configuration import TableSpec
+
 LOGGER = logging.getLogger(__name__)
 
 
-def generator_wrapper(root_iterator, table_spec):
+def generator_wrapper(root_iterator, table_spec: TableSpec):
     for obj in root_iterator:
         json_obj = json.loads(obj)
-        if table_spec.get("skip_empty_rows", False) and all(value == None or value == "" for value in obj.values()):
+        if table_spec.skip_empty_rows and all(value == None or value == "" for value in obj.values()):
             continue
         to_return = {}
         for key, value in json_obj.items():
@@ -30,7 +32,7 @@ def generator_wrapper(root_iterator, table_spec):
         yield to_return
 
 
-def get_row_iterator(table_spec, reader):
+def get_row_iterator(table_spec: TableSpec, reader):
     try:
         return generator_wrapper(iter(reader), table_spec)
     except JSONDecodeError as jde:

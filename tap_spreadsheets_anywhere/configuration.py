@@ -22,12 +22,16 @@ class TableSpec:
     use typed attribute access (e.g. `table_spec.path`) for IDE/type-checker support.
     """
 
-    path: str
-    name: str
-    pattern: str
-    start_date: str
-    key_properties: list[str]
-    format: str
+    # `path`/`name`/`pattern`/`start_date`/`key_properties`/`format` are required by
+    # CONFIG_CONTRACT for a real tap config - but that requirement is enforced there (by
+    # voluptuous), not here, so this dataclass can also be constructed directly (e.g. in
+    # tests exercising a single option) without spelling out unrelated fields every time.
+    path: str = ""
+    name: str = ""
+    pattern: str = ""
+    start_date: str = ""
+    key_properties: list[str] = dataclasses.field(default_factory=list)
+    format: str = "detect"
     encoding: str = "utf-8"
     invalid_format_action: str = "fail"
     universal_newlines: bool = True

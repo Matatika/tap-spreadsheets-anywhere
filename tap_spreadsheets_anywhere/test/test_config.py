@@ -6,6 +6,7 @@ import dateutil
 from tap_spreadsheets_anywhere import (
     file_utils,
 )
+from tap_spreadsheets_anywhere.configuration import TableSpec
 
 TEST_CRAWL_SPEC = {
     "tables": [
@@ -20,43 +21,43 @@ TEST_CRAWL_SPEC = {
 
 TEST_TABLE_SPEC = {
     "tables": [
-        {
-            "path": "file://./artifacts",
-            "name": "badnewlines",
-            "pattern": ".*\\.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 5,
-            "max_sampling_read": 2000,
-            "max_sampled_files": 3,
-        },
-        {
-            "path": "file://./artifacts",
-            "name": "badnewlines",
-            "pattern": ".*\\.csv",
-            "start_date": "2024-01-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 5,
-            "max_sampling_read": 2000,
-            "max_sampled_files": 3,
-        },
-        {
-            "path": "file://./artifacts",
-            "name": "badnewlines",
-            "pattern": ".*\\.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 5,
-            "max_sampling_read": 2000,
-            "max_sampled_files": 3,
-            "ignore_state": True,
-        },
+        TableSpec(
+            path="file://./artifacts",
+            name="badnewlines",
+            pattern=".*\\.csv",
+            start_date="2017-05-01T00:00:00Z",
+            key_properties=[],
+            format="csv",
+            universal_newlines=False,
+            sample_rate=5,
+            max_sampling_read=2000,
+            max_sampled_files=3,
+        ),
+        TableSpec(
+            path="file://./artifacts",
+            name="badnewlines",
+            pattern=".*\\.csv",
+            start_date="2024-01-01T00:00:00Z",
+            key_properties=[],
+            format="csv",
+            universal_newlines=False,
+            sample_rate=5,
+            max_sampling_read=2000,
+            max_sampled_files=3,
+        ),
+        TableSpec(
+            path="file://./artifacts",
+            name="badnewlines",
+            pattern=".*\\.csv",
+            start_date="2017-05-01T00:00:00Z",
+            key_properties=[],
+            format="csv",
+            universal_newlines=False,
+            sample_rate=5,
+            max_sampling_read=2000,
+            max_sampled_files=3,
+            ignore_state=True,
+        ),
     ]
 }
 
@@ -74,7 +75,7 @@ class TestFormatHandler(unittest.TestCase):
 class TestConfigStartDate(unittest.TestCase):
     def test_config_with_start_date_less_than_file_modified_date(self):
         table_spec = TEST_TABLE_SPEC["tables"][0]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
@@ -95,8 +96,8 @@ class TestConfigIgnoreState(unittest.TestCase):
         # This is the logic if state was found in the sync function.
         # 2024-01-01T00:00:00Z as our dummy state so this should not find any files unless we ignore_state
         modified_since = "2024-01-01T00:00:00Z"
-        modified_since = table_spec["start_date"] if table_spec.get("ignore_state") else modified_since
+        modified_since = table_spec.start_date if table_spec.ignore_state else modified_since
 
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1

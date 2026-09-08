@@ -16,6 +16,7 @@ from tap_spreadsheets_anywhere import (
     file_utils,
     generate_schema,
 )
+from tap_spreadsheets_anywhere.configuration import TableSpec
 from tap_spreadsheets_anywhere.format_handler import (
     get_row_iterator,
     monkey_patch_streamreader,
@@ -24,7 +25,11 @@ from tap_spreadsheets_anywhere.test.test_excel_handler import get_worksheet
 
 LOGGER = logging.getLogger(__name__)
 
-TEST_TABLE_SPEC = {
+# A single raw-dict table entry, kept separate from TEST_TABLE_SPEC below: this one exists
+# purely to exercise configuration.CONFIG_CONTRACT (which validates the tap's *raw JSON*
+# config shape, before it's parsed into TableSpec instances), not the rest of this module's
+# TableSpec-driven tests.
+RAW_TABLE_SPEC_FOR_CONTRACT_TEST = {
     "tables": [
         {
             "path": "s3://any_bucket_willdo",
@@ -41,133 +46,151 @@ TEST_TABLE_SPEC = {
             "max_sampled_files": 3,
             "schema_overrides": {"id": {"type": "integer"}},
         },
-        {
-            "path": "file://./artifacts",
-            "name": "badnewlines",
-            "pattern": ".*\\.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 5,
-            "max_sampling_read": 2000,
-            "max_sampled_files": 3,
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "badnewlines",
-            "pattern": ".*bad_newlines\\.xlsx",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "excel",
-            "worksheet_name": "sample_with_bad_newlines",
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "badnewlines",
-            "pattern": ".*\\.json",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "detect",
-        },
-        {
-            "path": "https://www.treasury.gov/ofac/downloads",
-            "name": "sdn",
-            "pattern": "sdn.csv",
-            "start_date": "1970-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "field_names": [
-                "id",
-                "name",
-                "a",
-                "country",
-                "b",
-                "c",
-                "d",
-                "e",
-                "f",
-                "g",
-                "h",
-                "i",
-            ],
-        },
-        {
-            # A stable, long-lived public CSV table (widely used in tutorials/examples),
-            # split into path + pattern to exercise the "indirect" (no filename in the
-            # base path) URL-assembly path in file_utils.convert_URL_to_file_list.
-            "path": "https://raw.githubusercontent.com/plotly/datasets/master",
-            "name": "gapminder",
-            "pattern": "gapminderDataFiveYear.csv",
-            "start_date": "1970-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-        },
-        {
-            "path": "https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/27763",
-            "name": "us__military_deaths",
-            "pattern": "ADYC1Q&name=10-F-1140.xls",
-            "start_date": "2014-11-04T18:38:22Z",
-            "key_properties": [],
-            "format": "excel",
-            "worksheet_name": " Worldwide",
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "error-free",
-            "pattern": ".*no_errors\\.xlsx",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "excel",
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "empty_rows_csv",
-            "pattern": "empty_rows_csv.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 1,
-            "max_sampling_read": 5,
-            "max_sampled_files": 1,
-            "skip_empty_rows": True,
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "empty_rows_csv",
-            "pattern": "empty_rows_csv.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 1,
-            "max_sampling_read": 5,
-            "max_sampled_files": 1,
-        },
-        {
-            "path": "file://./tap_spreadsheets_anywhere/test",
-            "name": "csv_double_quotes",
-            "pattern": "csv_with_escaped_double_quotes.csv",
-            "start_date": "2017-05-01T00:00:00Z",
-            "key_properties": [],
-            "format": "csv",
-            "universal_newlines": False,
-            "sample_rate": 1,
-            "max_sampling_read": 5,
-            "max_sampled_files": 1,
-        },
     ]
 }
+
+TEST_TABLE_SPEC = [
+    TableSpec(
+        path="s3://any_bucket_willdo",
+        name="products",
+        pattern="g2/.*roduct.*",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=["id"],
+        format="csv",
+        prefer_number_vs_integer=True,
+        prefer_schema_as_string=True,
+        universal_newlines=False,
+        sample_rate=5,
+        max_sampling_read=2000,
+        max_sampled_files=3,
+        schema_overrides={"id": {"type": "integer"}},
+    ),
+    TableSpec(
+        path="file://./artifacts",
+        name="badnewlines",
+        pattern=".*\\.csv",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+        universal_newlines=False,
+        sample_rate=5,
+        max_sampling_read=2000,
+        max_sampled_files=3,
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="badnewlines",
+        pattern=".*bad_newlines\\.xlsx",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="excel",
+        worksheet_name="sample_with_bad_newlines",
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="badnewlines",
+        pattern=".*\\.json",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="detect",
+    ),
+    TableSpec(
+        path="https://www.treasury.gov/ofac/downloads",
+        name="sdn",
+        pattern="sdn.csv",
+        start_date="1970-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+        field_names=[
+            "id",
+            "name",
+            "a",
+            "country",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+        ],
+    ),
+    TableSpec(
+        # A stable, long-lived public CSV table (widely used in tutorials/examples),
+        # split into path + pattern to exercise the "indirect" (no filename in the
+        # base path) URL-assembly path in file_utils.convert_URL_to_file_list.
+        path="https://raw.githubusercontent.com/plotly/datasets/master",
+        name="gapminder",
+        pattern="gapminderDataFiveYear.csv",
+        start_date="1970-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+    ),
+    TableSpec(
+        path="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/27763",
+        name="us__military_deaths",
+        pattern="ADYC1Q&name=10-F-1140.xls",
+        start_date="2014-11-04T18:38:22Z",
+        key_properties=[],
+        format="excel",
+        worksheet_name=" Worldwide",
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="error-free",
+        pattern=".*no_errors\\.xlsx",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="excel",
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="empty_rows_csv",
+        pattern="empty_rows_csv.csv",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+        universal_newlines=False,
+        sample_rate=1,
+        max_sampling_read=5,
+        max_sampled_files=1,
+        skip_empty_rows=True,
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="empty_rows_csv",
+        pattern="empty_rows_csv.csv",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+        universal_newlines=False,
+        sample_rate=1,
+        max_sampling_read=5,
+        max_sampled_files=1,
+    ),
+    TableSpec(
+        path="file://./tap_spreadsheets_anywhere/test",
+        name="csv_double_quotes",
+        pattern="csv_with_escaped_double_quotes.csv",
+        start_date="2017-05-01T00:00:00Z",
+        key_properties=[],
+        format="csv",
+        universal_newlines=False,
+        sample_rate=1,
+        max_sampling_read=5,
+        max_sampled_files=1,
+    ),
+]
 
 
 class TestFormatHandler(unittest.TestCase):
     def test_custom_config(self):
-        configuration.CONFIG_CONTRACT(TEST_TABLE_SPEC)
+        configuration.CONFIG_CONTRACT(RAW_TABLE_SPEC_FOR_CONTRACT_TEST)
 
     def test_handle_newlines_local_excel(self):
         test_filename_uri = "./tap_spreadsheets_anywhere/test/excel_with_bad_newlines.xlsx"
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][2], test_filename_uri)
+        iterator = get_row_iterator(TEST_TABLE_SPEC[2], test_filename_uri)
 
         for row in iterator:
             self.assertTrue(
@@ -177,7 +200,7 @@ class TestFormatHandler(unittest.TestCase):
 
     def test_handle_newlines_local_json(self):
         test_filename_uri = "./tap_spreadsheets_anywhere/test/sample.json"
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][3], test_filename_uri)
+        iterator = get_row_iterator(TEST_TABLE_SPEC[3], test_filename_uri)
 
         for row in iterator:
             self.assertTrue(
@@ -187,7 +210,7 @@ class TestFormatHandler(unittest.TestCase):
 
     def test_strip_newlines_local_custom_mini(self):
         test_filename_uri = "./tap_spreadsheets_anywhere/test/sample_with_bad_newlines.csv"
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][0], test_filename_uri)
+        iterator = get_row_iterator(TEST_TABLE_SPEC[0], test_filename_uri)
 
         for row in iterator:
             self.assertTrue(
@@ -202,7 +225,7 @@ class TestFormatHandler(unittest.TestCase):
         file_handle = smart_open.open(test_filename, "rb", errors="surrogateescape")
         reader = codecs.getreader("utf-8")(file_handle)
         reader = monkey_patch_streamreader(reader)
-        iterator = csv_handler.get_row_iterator(TEST_TABLE_SPEC["tables"][0], reader)
+        iterator = csv_handler.get_row_iterator(TEST_TABLE_SPEC[0], reader)
 
         for row in iterator:
             self.assertTrue(
@@ -213,8 +236,8 @@ class TestFormatHandler(unittest.TestCase):
     def test_smart_columns(self):
         with patch("sys.stdout", new_callable=StringIO) as fake_out:
             records_streamed = 0
-            table_spec = TEST_TABLE_SPEC["tables"][7]
-            modified_since = dateutil.parser.parse(table_spec["start_date"])
+            table_spec = TEST_TABLE_SPEC[7]
+            modified_since = dateutil.parser.parse(table_spec.start_date)
             target_files = file_utils.get_matching_objects(table_spec, modified_since)
             ignore_undefined_field_names = False
             samples = file_utils.sample_files(table_spec, target_files, ignore_undefined_field_names, sample_rate=1)
@@ -240,55 +263,55 @@ class TestFormatHandler(unittest.TestCase):
             self.assertTrue("_smart_source_lineno" in records[0]["record"])
 
     def test_local_bucket(self):
-        table_spec = TEST_TABLE_SPEC["tables"][1]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[1]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
     def test_https_bucket(self):
-        table_spec = TEST_TABLE_SPEC["tables"][4]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[4]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][4], target_uri)
+        target_uri = table_spec.path + "/" + table_spec.pattern
+        iterator = get_row_iterator(TEST_TABLE_SPEC[4], target_uri)
 
         row = next(iterator)
         self.assertTrue(int(row["id"]) > 0, row["id"] + " was not positive")
 
     def test_indirect_https_bucket(self):
-        table_spec = TEST_TABLE_SPEC["tables"][5]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[5]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][5], target_uri)
+        target_uri = table_spec.path + "/" + table_spec.pattern
+        iterator = get_row_iterator(TEST_TABLE_SPEC[5], target_uri)
 
         row = next(iterator)
         self.assertTrue(row["year"] == "1952", "Row did not contain expected data")
 
     def test_renamed_https_object(self):
-        table_spec = TEST_TABLE_SPEC["tables"][6]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[6]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][6], target_uri)
+        target_uri = table_spec.path + "/" + table_spec.pattern
+        iterator = get_row_iterator(TEST_TABLE_SPEC[6], target_uri)
 
         row = next(iterator)
         self.assertTrue(len(row) > 1, "Not able to read a row.")
 
     def test_csv_with_double_quotes_in_values(self):
-        table_spec = TEST_TABLE_SPEC["tables"][10]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[10]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
-        iterator = get_row_iterator(TEST_TABLE_SPEC["tables"][10], target_uri)
+        target_uri = table_spec.path + "/" + table_spec.pattern
+        iterator = get_row_iterator(TEST_TABLE_SPEC[10], target_uri)
 
         for row in iterator:
             print(row)
@@ -297,8 +320,8 @@ class TestFormatHandler(unittest.TestCase):
 
 class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
     def test_ignore_undefined_field_names_true(self):
-        table_spec = TEST_TABLE_SPEC["tables"][2]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[2]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         ignore_undefined_field_names = True
 
@@ -308,8 +331,8 @@ class TestFormatHandlerExcelXlsxIgnoreUndefinedFieldNames(unittest.TestCase):
         self.assertTrue(len(samples[1]) == 3, "Found more than expected 3 columns")
 
     def test_ignore_undefined_field_names_false(self):
-        table_spec = TEST_TABLE_SPEC["tables"][2]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[2]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         ignore_undefined_field_names = False
 
@@ -332,7 +355,7 @@ class TestFormatHandlerExcelXlsxSkipInitial:
         _, workbook, _, exp = get_worksheet()
         workbook.save(xlsx)
 
-        iterator = get_row_iterator({"format": "excel"}, uri)
+        iterator = get_row_iterator(TableSpec(format="excel"), uri)
         assert next(iterator) == exp[0]
         assert next(iterator) == exp[1]
         assert next(iterator) == exp[2]
@@ -344,7 +367,7 @@ class TestFormatHandlerExcelXlsxSkipInitial:
         Iteratting through this bad sample file will currently fail
         when parsing the blank line.
         """
-        table_spec = {"format": "excel"}
+        table_spec = TableSpec(format="excel")
         iterator = get_row_iterator(table_spec, self.uri)
         with pytest.raises(IndexError):
             for _ in iterator:
@@ -375,7 +398,7 @@ class TestFormatHandlerExcelXlsxSkipInitial:
             "Revenue_Type": "Commission Fees",
             "vat_gbp": 0.0,
         }
-        table_spec = {"format": "excel", "skip_initial": 4}
+        table_spec = TableSpec(format="excel", skip_initial=4)
         # NOTE: `get_row_iterator` should no longer fail with Issue #52, now
         # that: `excel_handler.generator_wrapper` is not parsing skipped rows.
         iterator = get_row_iterator(table_spec, self.uri)
@@ -387,12 +410,12 @@ class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
     """pytests to validate Skip Empty Rows setting."""
 
     def test_skip_empty_rows_csv(self):
-        table_spec = TEST_TABLE_SPEC["tables"][8]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[8]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
+        target_uri = table_spec.path + "/" + table_spec.pattern
         iterator = get_row_iterator(table_spec, target_uri)
 
         rows_list = []
@@ -405,12 +428,12 @@ class TestFormatHandlerSkipEmptyRows(unittest.TestCase):
         self.assertTrue(len(rows_list) == 8)
 
     def test_not_skip_empty_rows_csv(self):
-        table_spec = TEST_TABLE_SPEC["tables"][9]
-        modified_since = dateutil.parser.parse(table_spec["start_date"])
+        table_spec = TEST_TABLE_SPEC[9]
+        modified_since = dateutil.parser.parse(table_spec.start_date)
         target_files = file_utils.get_matching_objects(table_spec, modified_since)
         assert len(target_files) == 1
 
-        target_uri = table_spec["path"] + "/" + table_spec["pattern"]
+        target_uri = table_spec.path + "/" + table_spec.pattern
 
         iterator = get_row_iterator(table_spec, target_uri)
 

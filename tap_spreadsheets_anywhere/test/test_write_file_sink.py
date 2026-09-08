@@ -2,13 +2,14 @@ import unittest
 from unittest.mock import patch
 
 from tap_spreadsheets_anywhere import file_utils
+from tap_spreadsheets_anywhere.configuration import TableSpec
 from tap_spreadsheets_anywhere.record_sink import SingerRecordSink
 
-TABLE_SPEC = {
-    "path": "file://./does-not-matter",
-    "name": "my_stream",
-    "format": "csv",
-}
+TABLE_SPEC = TableSpec(
+    path="file://./does-not-matter",
+    name="my_stream",
+    format="csv",
+)
 SCHEMA = {"properties": {"id": {"type": ["null", "string"]}}}
 
 
