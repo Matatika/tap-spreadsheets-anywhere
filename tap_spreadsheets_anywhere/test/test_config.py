@@ -65,9 +65,10 @@ class TestFormatHandler:
     def test_config_by_crawl(self):
         crawl_paths = [x for x in TEST_CRAWL_SPEC["tables"] if x.get("crawl_config")]
         config_struct = file_utils.config_by_crawl(crawl_paths)
-        assert config_struct["tables"][0]["name"] == "excel_with_bad_newlinesxlsx", (
-            "config did not crawl and parse as expected!"
-        )
+        # Entry order depends on each file's last-modified time, which isn't stable across
+        # checkouts (git resets mtimes), so check membership rather than a specific position.
+        table_names = [table["name"] for table in config_struct["tables"]]
+        assert "excel_with_bad_newlinesxlsx" in table_names, "config did not crawl and parse as expected!"
 
 
 class TestConfigStartDate:
