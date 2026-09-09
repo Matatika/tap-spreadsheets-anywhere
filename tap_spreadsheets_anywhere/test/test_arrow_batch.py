@@ -222,3 +222,80 @@ class TestArrowBatchWriter:
 
         paths = [json.loads(line)["manifest"][0] for line in output.lines]
         assert len(set(paths)) == 2
+
+    def test_write_table_buffers_a_whole_table(self):
+        output = FakeOutput()
+        writer = self._writer(batch_size=10, output=output)
+
+        writer.write_table(pa.table({"id": [1, 2, 3]}))
+        assert output.lines == [], "should not flush before batch_size rows are buffered"
+        writer.flush()
+
+        message = json.loads(output.lines[0])
+        manifest_path = message["manifest"][0].removeprefix("file://")
+        with ipc.open_file(manifest_path) as reader:
+            assert reader.read_all().column("id").to_pylist() == [1, 2, 3]
+
+    def test_write_table_auto_flushes_at_batch_size(self):
+        output = FakeOutput()
+        writer = self._writer(batch_size=2, output=output)
+
+        writer.write_table(pa.table({"id": [1, 2]}))
+
+        assert len(output.lines) == 1
+
+    def test_write_table_with_zero_rows_is_a_noop(self):
+        output = FakeOutput()
+        writer = self._writer(batch_size=10, output=output)
+
+        writer.write_table(pa.table({"id": pa.array([], type=pa.int64())}))
+        writer.flush()
+
+        assert output.lines == []
+
+    def test_write_table_aligns_column_order_and_type(self):
+        output = FakeOutput()
+        self.schema = {"properties": {"id": {"type": ["null", "integer"]}, "other": {"type": ["null", "string"]}}}
+        writer = self._writer(batch_size=10, output=output)
+
+        # int32 instead of the schema's int64, and columns in the "wrong" order.
+        out_of_order = pa.table({"other": ["a"], "id": pa.array([1], type=pa.int32())})
+        writer.write_table(out_of_order)
+        writer.flush()
+
+        message = json.loads(output.lines[0])
+        manifest_path = message["manifest"][0].removeprefix("file://")
+        with ipc.open_file(manifest_path) as reader:
+            table = reader.read_all()
+            assert table.column_names == ["id", "other"]
+            assert table.column("id").type == pa.int64()
+
+    def test_write_and_write_table_share_one_batch(self):
+        output = FakeOutput()
+        writer = self._writer(batch_size=10, output=output)
+
+        writer.write({"id": 1})
+        writer.write_table(pa.table({"id": [2, 3]}))
+        writer.flush()
+
+        assert len(output.lines) == 1
+        message = json.loads(output.lines[0])
+        manifest_path = message["manifest"][0].removeprefix("file://")
+        with ipc.open_file(manifest_path) as reader:
+            assert sorted(reader.read_all().column("id").to_pylist()) == [1, 2, 3]
+
+    def test_native_timestamp_round_trips_through_write_table(self):
+        output = FakeOutput()
+        self.schema = {"properties": {"d": {"type": ["null", "string"], "format": "date-time"}}}
+        writer = self._writer(batch_size=10, output=output)
+
+        aware = pa.table({"d": pa.array(["2020-01-01T00:00:00+00:00"]).cast(pa.timestamp("us", tz="UTC"))})
+        writer.write_table(aware)
+        writer.flush()
+
+        message = json.loads(output.lines[0])
+        manifest_path = message["manifest"][0].removeprefix("file://")
+        with ipc.open_file(manifest_path) as reader:
+            table = reader.read_all()
+            assert table.column("d").type == pa.timestamp("us")
+            assert table.column("d").to_pylist() == [datetime(2020, 1, 1)]  # noqa: DTZ001 - the writer's timestamp column is intentionally naive (see arrow_batch._pick_arrow_type)

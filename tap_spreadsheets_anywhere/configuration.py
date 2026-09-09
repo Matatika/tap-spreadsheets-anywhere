@@ -54,6 +54,11 @@ class TableSpec:
     ignore_state: bool = False
     skip_empty_rows: bool = False
     state_based_discovery: bool = False
+    # Only consulted in Arrow BATCH mode (see arrow_batch.schema_to_arrow_schema): whether
+    # date-time columns are typed as native Arrow timestamps (parsed with pyarrow's strict
+    # ISO-8601 parser) or left as unparsed strings. Defaults on since Arrow BATCH mode is
+    # itself already opt-in; set to False for tables with non-ISO-8601 date formatting.
+    arrow_native_timestamps: bool = True
 
     @classmethod
     def from_dict(cls, data: dict) -> TableSpec:
@@ -128,6 +133,7 @@ CONFIG_CONTRACT = Schema(
                 Optional("ignore_state"): bool,
                 Optional("skip_empty_rows"): bool,
                 Optional("state_based_discovery"): bool,
+                Optional("arrow_native_timestamps"): bool,
             }
         ],
         Optional("azure_storage_connection_string"): str,
