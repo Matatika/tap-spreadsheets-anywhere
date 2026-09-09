@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from codecs import StreamReader
 from functools import cache
@@ -8,6 +9,7 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 import msgraphfs.core
+import pyarrow as pa
 import smart_open
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
@@ -20,6 +22,8 @@ import tap_spreadsheets_anywhere.json_handler
 import tap_spreadsheets_anywhere.jsonl_handler
 from tap_spreadsheets_anywhere.auth import refresh_microsoft_token
 from tap_spreadsheets_anywhere.configuration import TableSpec
+
+LOGGER = logging.getLogger(__name__)
 
 _config: dict = {}
 
@@ -329,43 +333,72 @@ def mp_readline(self, size=None, keepends=False):
     return line
 
 
+def _resolve_format(table_spec: TableSpec, uri: str) -> str:
+    if table_spec.format != "detect":
+        return table_spec.format
+
+    lowered_uri = uri.lower()
+    if lowered_uri.endswith((".xlsx", ".xls")):
+        return "excel"
+    if lowered_uri.endswith((".json", ".js")):
+        return "json"
+    if lowered_uri.endswith(".jsonl"):
+        return "jsonl"
+    if lowered_uri.endswith(".csv"):
+        return "csv"
+
+    # TODO: some protocols provide the ability to pull format (content-type) info & we could make use of that here
+    reader = get_streamreader(
+        uri,
+        universal_newlines=table_spec.universal_newlines,
+        open_mode="r",
+        encoding=table_spec.encoding,
+    )
+    buf = reader.read(10)
+    reader.seek(0)
+    if len(buf) > 0:
+        if buf[0].lstrip() == "[":
+            return "json"
+        elif buf[0].isprintable():
+            return "csv"
+        else:
+            raise ValueError(f"Unable to detect the format for {uri}")
+    else:
+        raise ValueError(f"Unable to read {uri} for type detection")
+
+
+def get_arrow_table(table_spec: TableSpec, uri: str, data_schema: pa.Schema) -> pa.Table | None:
+    """Vectorized Arrow BATCH fast path for CSV (see `csv_handler.get_arrow_table`).
+
+    Returns `None` when the fast path isn't applicable - either because `uri` doesn't
+    resolve to CSV format, or because pyarrow's stricter CSV parsing rejected something
+    (unexpected data shape, non-ISO-8601 date-time values when
+    `table_spec.arrow_native_timestamps` is set, etc.) - in which case the caller
+    (`file_utils.write_file`) should fall back to `get_row_iterator` and emit the file
+    row by row instead. A fast-path failure never fails the file outright: the row-by-row
+    path is always tried as a fallback first.
+    """
+    if _resolve_format(table_spec, uri) != "csv":
+        return None
+
+    reader = get_streamreader(
+        uri,
+        universal_newlines=table_spec.universal_newlines,
+        newline=None,
+        open_mode="rb",
+    )
+    try:
+        return tap_spreadsheets_anywhere.csv_handler.get_arrow_table(table_spec, reader, data_schema)
+    except (ValueError, pa.lib.ArrowInvalid) as err:
+        LOGGER.info("Falling back to row-by-row processing for %s: %s", uri, err)
+        return None
+
+
 def get_row_iterator(table_spec: TableSpec, uri):
     universal_newlines = table_spec.universal_newlines
     encoding = table_spec.encoding
     skip_initial = table_spec.skip_initial
-
-    if table_spec.format == "detect":
-        lowered_uri = uri.lower()
-        if lowered_uri.endswith((".xlsx", ".xls")):
-            format = "excel"
-        elif lowered_uri.endswith((".json", ".js")):
-            format = "json"
-        elif lowered_uri.endswith(".jsonl"):
-            format = "jsonl"
-        elif lowered_uri.endswith(".csv"):
-            format = "csv"
-        else:
-            # TODO: some protocols provide the ability to pull format (content-type) info & we could make use of that here
-            reader = get_streamreader(
-                uri,
-                universal_newlines=universal_newlines,
-                open_mode="r",
-                encoding=encoding,
-            )
-            buf = reader.read(10)
-            reader.seek(0)
-            if len(buf) > 0:
-                if buf[0].lstrip() == "[":
-                    format = "json"
-                elif buf[0].isprintable():
-                    format = "csv"
-                else:
-                    raise ValueError(f"Unable to detect the format for {uri}")
-            else:
-                raise ValueError(f"Unable to read {uri} for type detection")
-
-    else:
-        format = table_spec["format"]
+    format = _resolve_format(table_spec, uri)
 
     try:
         if format == "csv":

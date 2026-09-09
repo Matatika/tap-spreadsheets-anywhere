@@ -74,9 +74,15 @@ class BatchConfig:
         return batch_config
 
 
-def _pick_arrow_type(property_schema: dict) -> pa.DataType:
+def _pick_arrow_type(property_schema: dict, arrow_native_timestamps: bool = True) -> pa.DataType:
     """Map a single Singer JSON-schema property definition to an Arrow type."""
     if property_schema.get("format") == "date-time":
+        if not arrow_native_timestamps:
+            # table_spec.arrow_native_timestamps=False: keep the value as an unparsed
+            # string. Escape hatch for tables whose date-time values aren't reliably
+            # ISO-8601 (pyarrow's timestamp parsing - see rows_to_arrow_table - is strict
+            # about that, unlike conversion.convert's dateutil-based parsing).
+            return pa.string()
         # Values are timezone-aware ISO-8601 strings by the time they reach us
         # (conversion.convert always attaches UTC if a parsed value came back naive) -
         # encode as a proper (naive, UTC-implied) Arrow timestamp rather than a plain
@@ -101,10 +107,13 @@ def _pick_arrow_type(property_schema: dict) -> pa.DataType:
     }.get(json_type, pa.string())
 
 
-def schema_to_arrow_schema(schema: dict) -> pa.Schema:
+def schema_to_arrow_schema(schema: dict, arrow_native_timestamps: bool = True) -> pa.Schema:
     """Map a Singer JSON schema (as produced by tap_spreadsheets_anywhere.generate_schema) to an Arrow schema."""
     properties = schema.get("properties", {})
-    fields = [pa.field(name, _pick_arrow_type(prop), nullable=True) for name, prop in properties.items()]
+    fields = [
+        pa.field(name, _pick_arrow_type(prop, arrow_native_timestamps), nullable=True)
+        for name, prop in properties.items()
+    ]
     return pa.schema(fields)
 
 
@@ -135,6 +144,26 @@ def rows_to_arrow_table(rows: list[dict], arrow_schema: pa.Schema) -> pa.Table:
             arrays.append(pa.array(values, type=field.type))
 
     return pa.Table.from_arrays(arrays, schema=arrow_schema)
+
+
+def _align_to_arrow_schema(table: pa.Table, arrow_schema: pa.Schema) -> pa.Table:
+    """Reorder/cast `table`'s columns to exactly match `arrow_schema`.
+
+    A plain `Table.cast()` can't convert a tz-aware ISO-8601 string straight into a naive
+    timestamp column (pyarrow's cast rejects the offset) - the same two-step conversion
+    `rows_to_arrow_table` already needs (parse as tz-aware first, then cast down to
+    naive) is applied here per-column, for any string column targeting a timestamp
+    field. Every other column just uses a normal cast.
+    """
+    table = table.select(arrow_schema.names)
+    for index, field in enumerate(arrow_schema):
+        column = table.column(index)
+        if pa.types.is_timestamp(field.type) and pa.types.is_string(column.type):
+            aware = column.cast(pa.timestamp(field.type.unit, tz="UTC"))
+            table = table.set_column(index, field, aware.cast(field.type))
+        elif column.type != field.type:
+            table = table.set_column(index, field, column.cast(field.type))
+    return table
 
 
 def write_arrow_ipc_file(table: pa.Table, path: str) -> int:
@@ -179,33 +208,58 @@ class ArrowBatchWriter:
         stream_name: str,
         schema: dict,
         batch_config: BatchConfig,
+        arrow_native_timestamps: bool = True,
         output: Any = None,
     ):
         self.stream_name = stream_name
-        self._arrow_schema = schema_to_arrow_schema(schema)
+        self.arrow_schema = schema_to_arrow_schema(schema, arrow_native_timestamps)
         self._batch_config = batch_config
         self._output = output
         self._rows: list[dict] = []
+        self._tables: list[pa.Table] = []
+        self._row_count = 0
 
     def write(self, record: dict) -> None:
         self._rows.append(record)
-        if len(self._rows) >= self._batch_config.batch_size:
+        self._row_count += 1
+        if self._row_count >= self._batch_config.batch_size:
+            self.flush()
+
+    def write_table(self, table: pa.Table) -> None:
+        """Buffer a whole pyarrow Table at once (the CSV vectorized fast path).
+
+        `table` must already carry the writer's exact column names (order/types are
+        aligned here via `select`/`cast`), including the `_smart_source_*` metadata
+        columns - see `file_utils.write_file`.
+        """
+        if table.num_rows == 0:
+            return
+        aligned = _align_to_arrow_schema(table, self.arrow_schema)
+        self._tables.append(aligned)
+        self._row_count += aligned.num_rows
+        if self._row_count >= self._batch_config.batch_size:
             self.flush()
 
     def flush(self) -> None:
-        if not self._rows:
+        if not self._rows and not self._tables:
             return
 
-        table = rows_to_arrow_table(self._rows, self._arrow_schema)
+        tables = list(self._tables)
+        if self._rows:
+            tables.append(rows_to_arrow_table(self._rows, self.arrow_schema))
+        table = tables[0] if len(tables) == 1 else pa.concat_tables(tables)
+
         filename = f"tap-spreadsheets-anywhere-{uuid.uuid4().hex}.arrow"
         path = os.path.join(self._batch_config.batch_root_dir, filename)
         size_bytes = write_arrow_ipc_file(table, path)
         LOGGER.info(
             "Wrote Arrow batch file: %s (%d rows, %d bytes)",
             path,
-            len(self._rows),
+            self._row_count,
             size_bytes,
         )
 
         write_message(build_batch_message(self.stream_name, [f"file://{path}"]), self._output)
         self._rows = []
+        self._tables = []
+        self._row_count = 0

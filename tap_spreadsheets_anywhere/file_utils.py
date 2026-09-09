@@ -13,6 +13,7 @@ from urllib.parse import urlparse, urlunparse
 
 import boto3
 import dateutil
+import pyarrow as pa
 import pytz
 import requests
 import smart_open.ftp as ftp_transport
@@ -20,9 +21,16 @@ import smart_open.ssh as ssh_transport
 from azure.storage.blob import BlobServiceClient
 
 import tap_spreadsheets_anywhere.format_handler
-from tap_spreadsheets_anywhere import conversion
+from tap_spreadsheets_anywhere import arrow_batch, conversion
 from tap_spreadsheets_anywhere.configuration import TableSpec
 from tap_spreadsheets_anywhere.record_sink import SingerRecordSink
+
+_METADATA_COLUMNS = (
+    "_smart_source_bucket",
+    "_smart_source_file",
+    "_smart_source_lineno",
+    "_smart_source_last_modified",
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,10 +61,48 @@ def _hide_credentials(path):
     return path
 
 
+def _write_via_arrow_fast_path(target_uri, target_filename, last_modified_iso, table_spec, sink, max_records):
+    """Attempt the vectorized CSV Arrow BATCH fast path for this file.
+
+    Returns the number of rows written, or None if the fast path isn't applicable (the
+    file isn't CSV, or pyarrow's parsing failed) - the caller should fall back to
+    `format_handler.get_row_iterator` and emit the file row by row instead.
+    """
+    data_schema = pa.schema([field for field in sink.arrow_schema if field.name not in _METADATA_COLUMNS])
+    table = tap_spreadsheets_anywhere.format_handler.get_arrow_table(table_spec, target_uri, data_schema)
+    if table is None:
+        return None
+
+    if 0 <= max_records < table.num_rows:
+        table = table.slice(0, max_records)
+
+    num_rows = table.num_rows
+    bucket = _hide_credentials(table_spec.path)
+    # index zero, +1 for header row - matches write_file's row-by-row _smart_source_lineno
+    table = table.append_column("_smart_source_bucket", pa.array([bucket] * num_rows, type=pa.string()))
+    table = table.append_column("_smart_source_file", pa.array([target_filename] * num_rows, type=pa.string()))
+    table = table.append_column("_smart_source_lineno", pa.array(range(2, num_rows + 2), type=pa.int64()))
+    table = table.append_column(
+        "_smart_source_last_modified", pa.array([last_modified_iso] * num_rows, type=pa.string())
+    )
+
+    sink.write_table(table)
+    LOGGER.info("Synced %d records for %s via the vectorized Arrow fast path.", num_rows, target_filename)
+    return num_rows
+
+
 def write_file(target_filename, last_modified_iso, table_spec: TableSpec, schema, max_records=-1, sink=None):
     LOGGER.info('Syncing file "%s".', target_filename)
     target_uri = resolve_target_uri(table_spec, target_filename)
     sink = sink or SingerRecordSink(table_spec.name)
+
+    if isinstance(sink, arrow_batch.ArrowBatchWriter):
+        fast_path_rows = _write_via_arrow_fast_path(
+            target_uri, target_filename, last_modified_iso, table_spec, sink, max_records
+        )
+        if fast_path_rows is not None:
+            return fast_path_rows
+
     records_synced = 0
     try:
         iterator = tap_spreadsheets_anywhere.format_handler.get_row_iterator(table_spec, target_uri)

@@ -145,7 +145,12 @@ def sync(config, state, catalog):
             )
 
             sink = (
-                arrow_batch.ArrowBatchWriter(stream.tap_stream_id, merged_schema, batch_config)
+                arrow_batch.ArrowBatchWriter(
+                    stream.tap_stream_id,
+                    merged_schema,
+                    batch_config,
+                    arrow_native_timestamps=table_spec.arrow_native_timestamps,
+                )
                 if batch_config is not None
                 else SingerRecordSink(stream.tap_stream_id)
             )
