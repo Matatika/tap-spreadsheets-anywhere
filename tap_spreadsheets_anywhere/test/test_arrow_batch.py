@@ -1,5 +1,6 @@
 import json
 import os
+import typing
 from datetime import datetime
 
 import pyarrow as pa
@@ -104,7 +105,9 @@ class TestRowsToArrowTable:
 
         table = rows_to_arrow_table(rows, arrow_schema)
 
-        assert json.loads(table.column("payload")[0].as_py()) == {"k": "v"}
+        payload = table.column("payload").to_pylist()[0]
+        assert payload is not None
+        assert json.loads(payload) == {"k": "v"}
 
     def test_parses_date_time_strings_into_naive_utc_timestamps(self):
         # Values arrive as timezone-aware ISO-8601 strings (see conversion.convert) --
@@ -282,7 +285,8 @@ class TestArrowBatchWriter:
         message = json.loads(output.lines[0])
         manifest_path = message["manifest"][0].removeprefix("file://")
         with ipc.open_file(manifest_path) as reader:
-            assert sorted(reader.read_all().column("id").to_pylist()) == [1, 2, 3]
+            ids = typing.cast("list[int]", reader.read_all().column("id").to_pylist())
+            assert sorted(ids) == [1, 2, 3]
 
     def test_native_timestamp_round_trips_through_write_table(self):
         output = FakeOutput()

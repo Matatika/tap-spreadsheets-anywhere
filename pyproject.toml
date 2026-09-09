@@ -48,7 +48,10 @@ Repository = "https://github.com/Matatika/tap-spreadsheets-anywhere"
 tap-spreadsheets-anywhere = "tap_spreadsheets_anywhere:main"
 
 [dependency-groups]
-dev = [ "pytest" ]
+dev = [
+ "pyarrow-stubs>=20.0.0.20260819",
+ "pytest",
+]
 
 [tool.hatch.version]
 source = "vcs"

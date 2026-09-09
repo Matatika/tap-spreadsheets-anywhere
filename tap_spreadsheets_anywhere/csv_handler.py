@@ -2,6 +2,7 @@ import csv
 import io
 import logging
 import re
+import typing
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -10,6 +11,10 @@ import pyarrow.csv as pa_csv
 from tap_spreadsheets_anywhere.configuration import TableSpec
 
 LOGGER = logging.getLogger(__name__)
+
+# Candidate delimiter characters for csv.Sniffer.sniff(): a single string of characters
+# to consider, per its signature - not a list of one-character strings.
+_SNIFF_DELIMITERS = ",\t;:| "
 
 
 def _normalize_key(key):
@@ -44,7 +49,7 @@ def get_row_iterator(table_spec: TableSpec, reader):
     dialect = "excel"
     if table_spec.delimiter is None or table_spec.delimiter == "detect":
         try:
-            dialect = csv.Sniffer().sniff(reader.readline(), delimiters=[",", "\t", ";", " ", ":", "|", " "])
+            dialect = csv.Sniffer().sniff(reader.readline(), delimiters=_SNIFF_DELIMITERS)
             dialect.doublequote = True
             if reader.seekable():
                 reader.seek(0)
@@ -63,7 +68,7 @@ def get_row_iterator(table_spec: TableSpec, reader):
             csv.register_dialect(dialect, custom_dialect)
 
     reader = csv.DictReader(reader, fieldnames=field_names, dialect=dialect)
-    reader.fieldnames = [name.strip() for name in reader.fieldnames]
+    reader.fieldnames = [name.strip() for name in reader.fieldnames or []]
 
     return generator_wrapper(reader, table_spec)
 
@@ -72,7 +77,7 @@ def _resolve_delimiter(table_spec: TableSpec, sample_text: str) -> str:
     if table_spec.delimiter is not None and table_spec.delimiter != "detect":
         return table_spec.delimiter
     try:
-        dialect = csv.Sniffer().sniff(sample_text, delimiters=[",", "\t", ";", " ", ":", "|", " "])
+        dialect = csv.Sniffer().sniff(sample_text, delimiters=_SNIFF_DELIMITERS)
         return dialect.delimiter
     except Exception as err:
         raise ValueError("Unable to sniff a delimiter") from err
@@ -164,10 +169,17 @@ def get_arrow_table(table_spec: TableSpec, binary_reader, data_schema: pa.Schema
         # A row is empty when every column is null - matches generator_wrapper's row-level
         # check, since null_values=[""] above already makes an originally-empty cell null
         # regardless of column type.
-        non_null_mask = None
+        non_null_mask: pa.BooleanArray | None = None
         for column in table.columns:
             valid = pc.is_valid(column)
-            non_null_mask = valid if non_null_mask is None else pc.or_(non_null_mask, valid)
+            if non_null_mask is None:
+                non_null_mask = valid
+            else:
+                # pc.or_'s return type is a wide union across its overloads (it also
+                # covers scalar/Expression inputs); without this cast, ty widens
+                # non_null_mask's loop-carried type to that same union across
+                # iterations, which the next call's first argument then rejects.
+                non_null_mask = typing.cast("pa.BooleanArray", pc.or_(non_null_mask, valid))
         if non_null_mask is not None:
             table = table.filter(non_null_mask)
 

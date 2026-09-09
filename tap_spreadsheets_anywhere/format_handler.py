@@ -98,7 +98,7 @@ def get_gcs_client():
     credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
     try:
-        return GCSClient.from_service_account_info(json.loads(credentials))
+        return GCSClient.from_service_account_info(json.loads(credentials or ""))
     except (TypeError, json.decoder.JSONDecodeError):
         return GCSClient()
 

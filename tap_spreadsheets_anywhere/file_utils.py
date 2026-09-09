@@ -281,10 +281,12 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
         raise ImportError("paramiko is required to open SSH/SCP/SFTP paths")
 
     parsed_uri = ssh_transport.parse_uri(uri)
-    uri_path = parsed_uri.pop("uri_path")
-    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(parsed_uri.pop("scheme"))
+    uri_path = parsed_uri["uri_path"]
+    host = parsed_uri["host"]
+    assert host is not None, f"Could not parse a host from SSH/SFTP URI: {uri}"
+    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(parsed_uri["scheme"])
     ssh = ssh_transport._connect_ssh(
-        parsed_uri["host"],
+        host,
         parsed_uri["user"],
         parsed_uri["port"] or 22,
         parsed_uri["password"],
@@ -319,10 +321,14 @@ def convert_URL_to_file_list(table_spec: TableSpec):
     r = requests.get(url, allow_redirects=True)
     if r:
         if "last-modified" in r.headers:
-            # The header is immediately localized to UTC below, so the naive strptime() result here is transient.
-            last_modified = pytz.UTC.localize(
-                datetime.strptime(r.headers["last-modified"], "%a, %d %b %Y %H:%M:%S %Z")  # noqa: DTZ007
-            )
+            # Attaching tzinfo via replace() (rather than pytz.UTC.localize()) is the
+            # correct pytz usage for a fixed-offset zone like UTC (no DST to account
+            # for), and sidesteps a pytz typing quirk where `UTC` is itself a class,
+            # confusing static analysis of `UTC.localize(...)`.
+            last_modified = datetime.strptime(
+                r.headers["last-modified"],
+                "%a, %d %b %Y %H:%M:%S %Z",
+            ).replace(tzinfo=pytz.utc)
         else:
             LOGGER.warning("URL did not return a last-modified header so using current date and time.")
             last_modified = datetime.now(tz=timezone.utc)
@@ -343,10 +349,13 @@ def convert_URL_to_file_list(table_spec: TableSpec):
 
 def list_files_in_ftp_server(uri, search_prefix=None):
     parsed_uri = ftp_transport.parse_uri(uri)
-    uri_path = parsed_uri.pop("uri_path")
+    uri_path = parsed_uri["uri_path"]
+    assert uri_path is not None, f"Could not parse a path from FTP URI: {uri}"
+    host = parsed_uri["host"]
+    assert host is not None, f"Could not parse a host from FTP URI: {uri}"
     secure_conn = parsed_uri["scheme"] == "ftps"
     ftp = ftp_transport._connect(
-        parsed_uri["host"],
+        host,
         parsed_uri["user"],
         parsed_uri["port"],
         parsed_uri["password"],
@@ -478,6 +487,7 @@ def list_files_in_imap_mailbox(
     search_prefix: str | None = None,
     modified_since: datetime | None = None,
 ):
+    assert modified_since is not None, "list_files_in_imap_mailbox requires a modified_since bound"
     parsed = urlparse(uri)
     fs = tap_spreadsheets_anywhere.format_handler.get_imap_fs(parsed.netloc)
     target_objects = []
