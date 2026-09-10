@@ -23,7 +23,9 @@ def generator_wrapper(reader, table_spec: TableSpec | None = None) -> Generator[
             _skip_count += 1
             continue
 
-        if table_spec.skip_empty_rows and all(value == None or value == "" for value in row.values()):
+        # NOTE: rows are still sequences of cell objects at this point - they only become
+        # dicts further down, once the header row has been captured.
+        if table_spec.skip_empty_rows and all(cell.value is None or cell.value == "" for cell in row):
             continue
 
         to_return = {}
