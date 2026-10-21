@@ -437,15 +437,23 @@ def list_files_in_azure_bucket(
     search_prefix: str | None = None,
     modified_since: datetime | None = None,
 ):
+    return [
+        {"Key": name, "LastModified": last_modified}
+        for name, last_modified in _list_azure_container(container_name, search_prefix)
+        if modified_since is None or last_modified >= modified_since
+    ]
+
+
+@lru_cache
+def _list_azure_container(container_name: str, search_prefix: str | None = None):
+    # Listing is the slow part (the whole container is paged through, then filtered client-side),
+    # and every stream lists the same container - so list once per process and filter per stream.
+    # modified_since is deliberately not part of the cache key; it differs per stream.
     sas_key = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
     blob_service_client = BlobServiceClient.from_connection_string(sas_key)
     container_client = blob_service_client.get_container_client(container_name)
     blob_iterator = container_client.list_blobs(name_starts_with=search_prefix)
-    return [
-        {"Key": blob.name, "LastModified": blob.last_modified}
-        for blob in blob_iterator
-        if blob.size > 0 and (modified_since is None or blob.last_modified >= modified_since)
-    ]
+    return tuple((blob.name, blob.last_modified) for blob in blob_iterator if blob.size > 0)
 
 
 def list_files_in_s3_bucket(bucket, search_prefix=None):
