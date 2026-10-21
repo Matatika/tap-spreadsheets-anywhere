@@ -72,6 +72,7 @@ line-length = 120
 quote-style = "double"
 [tool.ruff.lint]
 extend-select = [
+  "DTZ",
   "G",
   "LOG",
 ]
