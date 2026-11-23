@@ -4,17 +4,20 @@ import os
 from codecs import StreamReader
 from functools import cache
 from imaplib import IMAP4
-from io import StringIO
+from io import StringIO, TextIOWrapper
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 import msgraphfs.core
 import pyarrow as pa
 import smart_open
+import smart_open.ssh
 from azure.storage.blob import BlobServiceClient
 from google.cloud.storage import Client as GCSClient
 from imapfs.core import IMAPFileSystem
+from paramiko import AutoAddPolicy, SSHClient
 from paramiko.rsakey import RSAKey
+from smart_open.compression import compression_wrapper
 
 import tap_spreadsheets_anywhere.csv_handler
 import tap_spreadsheets_anywhere.excel_handler
@@ -111,6 +114,18 @@ class InvalidFormatError(Exception):
 
     def __str__(self):
         return f"{self.name} could not be parsed: {self.message}"
+
+
+@cache
+def get_sftp_client(host, port, user, password):
+    ssh = SSHClient()
+    ssh.load_system_host_keys()
+    # A pipeline runner has no known_hosts file to trust the server key from.
+    ssh.set_missing_host_key_policy(AutoAddPolicy())
+    connect_kwargs = get_transport_params("sftp")["connect_kwargs"]
+    connect_kwargs.setdefault("password", password)
+    ssh.connect(host, port or 22, username=user, **connect_kwargs)
+    return ssh.open_sftp()
 
 
 @cache
@@ -239,6 +254,16 @@ def get_streamreader(
             encoding=encoding,
             errors="replace",
         )
+
+    if parsed.scheme == "sftp":
+        ssh_uri = smart_open.ssh.parse_uri(uri)
+        path = ssh_uri["uri_path"]
+        sftp = get_sftp_client(ssh_uri["host"], ssh_uri["port"], ssh_uri["user"], ssh_uri["password"])
+        binary = compression_wrapper(sftp.open(path, "rb"), "rb", filename=path)
+
+        if "b" in open_mode:
+            return binary
+        return TextIOWrapper(binary, encoding=encoding, errors="surrogateescape", newline=newline)
 
     streamreader = smart_open.open(
         uri,

@@ -284,15 +284,9 @@ def list_files_in_SSH_bucket(uri, search_prefix=None):
     uri_path = parsed_uri["uri_path"]
     host = parsed_uri["host"]
     assert host is not None, f"Could not parse a host from SSH/SFTP URI: {uri}"
-    transport_params = tap_spreadsheets_anywhere.format_handler.get_transport_params(parsed_uri["scheme"])
-    ssh = ssh_transport._connect_ssh(
-        host,
-        parsed_uri["user"],
-        parsed_uri["port"] or 22,
-        parsed_uri["password"],
-        transport_params.pop("connect_kwargs", None),
+    sftp_client = tap_spreadsheets_anywhere.format_handler.get_sftp_client(
+        host, parsed_uri["port"], parsed_uri["user"], parsed_uri["password"]
     )
-    sftp_client = ssh.get_transport().open_sftp_client()
     entries = []
     max_results = 10000
 
